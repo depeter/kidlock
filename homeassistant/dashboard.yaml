@@ -1,0 +1,112 @@
+# Kidlock Lovelace Dashboard Example
+# Add as a new dashboard or view in your HA dashboard
+
+title: Kidlock
+views:
+  - title: Screen Time
+    path: kidlock
+    icon: mdi:laptop
+    cards:
+      # Schedule Settings Card
+      - type: entities
+        title: Schedule Settings
+        show_header_toggle: false
+        entities:
+          - entity: input_number.kidlock_daily_limit
+            name: Daily Limit
+          - type: section
+            label: Weekday Hours
+          - entity: input_datetime.kidlock_weekday_start
+            name: Start
+          - entity: input_datetime.kidlock_weekday_end
+            name: End
+          - type: section
+            label: Weekend Hours
+          - entity: input_datetime.kidlock_weekend_start
+            name: Start
+          - entity: input_datetime.kidlock_weekend_end
+            name: End
+
+      # Mint Laptop Card
+      - type: entities
+        title: Mint Laptop
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.mint_laptop_online
+            name: Status
+          - entity: sensor.mint_laptop_usage_formatted
+            name: Usage Today
+          - entity: sensor.mint_laptop_idle_formatted
+            name: Idle Time
+          - entity: sensor.mint_laptop_active_window
+            name: Active Window
+          - type: divider
+          - entity: button.mint_laptop_lock
+            name: Lock Screen
+          - entity: button.mint_laptop_shutdown
+            name: Shutdown
+          - entity: button.mint_laptop_cancel_shutdown
+            name: Cancel Shutdown
+
+      # Windows Laptop Card
+      - type: entities
+        title: Windows Laptop
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.win_laptop_online
+            name: Status
+          - entity: sensor.win_laptop_usage_formatted
+            name: Usage Today
+          - entity: sensor.win_laptop_idle_formatted
+            name: Idle Time
+          - entity: sensor.win_laptop_active_window
+            name: Active Window
+          - type: divider
+          - entity: button.win_laptop_lock
+            name: Lock Screen
+          - entity: button.win_laptop_shutdown
+            name: Shutdown
+          - entity: button.win_laptop_cancel_shutdown
+            name: Cancel Shutdown
+
+      # Quick Controls - Horizontal Stack
+      - type: horizontal-stack
+        cards:
+          - type: button
+            name: Lock Mint
+            icon: mdi:lock
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.mint_laptop_lock
+          - type: button
+            name: Lock Win
+            icon: mdi:lock
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.win_laptop_lock
+
+      # Usage Gauge Cards
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            name: Mint Usage
+            entity: sensor.mint_laptop_usage
+            min: 0
+            max: 480
+            severity:
+              green: 0
+              yellow: 180
+              red: 360
+          - type: gauge
+            name: Win Usage
+            entity: sensor.win_laptop_usage
+            min: 0
+            max: 480
+            severity:
+              green: 0
+              yellow: 180
+              red: 360

@@ -1,0 +1,17 @@
+mqtt:
+  broker: "homeassistant.local"
+  port: 1883
+  username: "mqtt_user"
+  password: "mqtt_pass"
+
+device:
+  hostname: "mint-laptop"  # Used in topic: parental/{hostname}/...
+
+activity:
+  poll_interval: 10  # Seconds between activity updates
+
+limits:
+  daily_minutes: 180  # 3 hours max per day
+  schedule:
+    weekday: "15:00-20:00"
+    weekend: "09:00-21:00"

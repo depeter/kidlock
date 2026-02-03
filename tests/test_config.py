@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.config import Config, MqttConfig, ScheduleConfig, UserConfig
+from agent.config import Config, ScheduleConfig, UserConfig
 
 
 class TestConfig:

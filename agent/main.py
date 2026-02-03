@@ -1,6 +1,7 @@
 """Main entry point for Kidlock agent."""
 
 import argparse
+import json
 import logging
 import os
 import signal
@@ -8,9 +9,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
-
-import json
 
 from .app_tracker import AppTracker
 from .config import Config
@@ -389,7 +387,7 @@ class KidlockAgent:
 
     def run(self) -> None:
         """Run the agent."""
-        log.info(f"Starting Kidlock agent (system service)")
+        log.info("Starting Kidlock agent (system service)")
         log.info(f"Hostname: {self.config.device.hostname}")
         log.info(f"Controlling users: {[u.username for u in self.config.users]}")
 

@@ -3,7 +3,6 @@
 import ctypes
 import logging
 import subprocess
-import struct
 from typing import Optional
 
 from .base import PlatformBase

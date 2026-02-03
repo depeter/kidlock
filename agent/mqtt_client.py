@@ -4,11 +4,9 @@ import json
 import logging
 import threading
 from datetime import datetime
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 import paho.mqtt.client as mqtt
-
-from typing import List, Tuple
 
 from .config import Config, UserConfig
 

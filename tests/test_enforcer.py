@@ -1,15 +1,12 @@
 """Tests for enforcer module."""
 
-import json
-import tempfile
-from datetime import date, datetime, time
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
 from agent.config import ScheduleConfig, UserConfig
-from agent.enforcer import Enforcer, UserState, STATE_FILE
+from agent.enforcer import Enforcer, UserState
 
 
 class TestUserState:
@@ -50,6 +47,7 @@ class TestUserState:
             "paused": False,
             "bonus_minutes": 15,
             "warnings_sent": [10],
+            "pending_request": {"id": "abc123", "minutes": 15, "reason": "Homework"},
         }
 
         state = UserState.from_dict("testuser", data)
@@ -59,6 +57,8 @@ class TestUserState:
         assert state.blocked is True
         assert state.bonus_minutes == 15
         assert state.warnings_sent == {10}
+        assert state.pending_request is not None
+        assert state.pending_request["minutes"] == 15
 
 
 class TestEnforcer:

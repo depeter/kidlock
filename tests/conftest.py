@@ -23,6 +23,7 @@ def temp_state_file():
                     "paused_at": None,
                     "bonus_minutes": 0,
                     "warnings_sent": [],
+                    "pending_request": None,
                 }
             }
         }

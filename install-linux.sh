@@ -9,18 +9,55 @@ VENV_DIR="$SCRIPT_DIR/.venv"
 
 echo "=== Kidlock Linux Installer ==="
 
-# Check for required tools
-echo "Checking dependencies..."
-for cmd in xdotool xprintidle zenity dnsmasq; do
-    if ! command -v "$cmd" &>/dev/null; then
-        echo "Warning: $cmd not found. Install with: sudo apt install $cmd"
+# Detect package manager and install function
+install_pkg() {
+    if command -v apt &>/dev/null; then
+        sudo apt install -y "$@"
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y "$@"
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm "$@"
+    else
+        echo "Error: No supported package manager found (apt, dnf, pacman)"
+        exit 1
     fi
-done
+}
+
+# Install all required system dependencies
+echo "Checking and installing dependencies..."
+DEPS_TO_INSTALL=()
 
 # Check for Python
 if ! command -v python3 &>/dev/null; then
-    echo "Error: python3 not found"
-    exit 1
+    echo "python3 not found, will install..."
+    DEPS_TO_INSTALL+=(python3)
+fi
+
+# Check for python3-venv (needed for virtual environments)
+# Only check if python3 is already installed
+if command -v python3 &>/dev/null && ! python3 -m venv --help &>/dev/null 2>&1; then
+    echo "python3-venv not found, will install..."
+    if command -v apt &>/dev/null; then
+        DEPS_TO_INSTALL+=(python3-venv)
+    fi
+    # dnf/pacman include venv in python3 package
+elif ! command -v python3 &>/dev/null && command -v apt &>/dev/null; then
+    # If installing python3 on apt-based systems, also need python3-venv
+    DEPS_TO_INSTALL+=(python3-venv)
+fi
+
+# Check for required tools
+for cmd in xdotool xprintidle zenity dnsmasq; do
+    if ! command -v "$cmd" &>/dev/null; then
+        echo "$cmd not found, will install..."
+        DEPS_TO_INSTALL+=("$cmd")
+    fi
+done
+
+# Install missing dependencies
+if [ ${#DEPS_TO_INSTALL[@]} -gt 0 ]; then
+    echo "Installing: ${DEPS_TO_INSTALL[*]}"
+    install_pkg "${DEPS_TO_INSTALL[@]}"
 fi
 
 # Create virtual environment
@@ -72,12 +109,6 @@ systemctl --user daemon-reload
 # Setup DNS blocking with dnsmasq
 echo ""
 echo "=== Setting up DNS blocking ==="
-
-# Install dnsmasq if not present
-if ! command -v dnsmasq &>/dev/null; then
-    echo "Installing dnsmasq..."
-    sudo apt install -y dnsmasq
-fi
 
 # Configure dnsmasq base settings
 echo "Configuring dnsmasq..."

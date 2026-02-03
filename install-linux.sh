@@ -31,20 +31,18 @@ DEPS_TO_INSTALL=()
 if ! command -v python3 &>/dev/null; then
     echo "python3 not found, will install..."
     DEPS_TO_INSTALL+=(python3)
-fi
-
-# Check for python3-venv (needed for virtual environments)
-# Only check if python3 is already installed
-if command -v python3 &>/dev/null && ! python3 -m venv --help &>/dev/null 2>&1; then
+    # On apt systems, python3-venv is a separate package
+    if command -v apt &>/dev/null; then
+        DEPS_TO_INSTALL+=(python3-venv)
+    fi
+elif ! python3 -m venv --help &>/dev/null 2>&1; then
+    # Python exists but venv module missing (common on Debian/Ubuntu)
     echo "python3-venv not found, will install..."
     if command -v apt &>/dev/null; then
         DEPS_TO_INSTALL+=(python3-venv)
     fi
-    # dnf/pacman include venv in python3 package
-elif ! command -v python3 &>/dev/null && command -v apt &>/dev/null; then
-    # If installing python3 on apt-based systems, also need python3-venv
-    DEPS_TO_INSTALL+=(python3-venv)
 fi
+# Note: dnf/pacman include venv in python3 package
 
 # Check for required tools
 for cmd in xdotool xprintidle zenity dnsmasq; do

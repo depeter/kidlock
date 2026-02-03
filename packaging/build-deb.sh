@@ -94,7 +94,7 @@ fpm -s dir -t deb \
     --description "Linux parental control with Home Assistant integration" \
     --url "https://github.com/peter/kidlock" \
     --license "MIT" \
-    --depends "python3 >= 3.8" \
+    --depends "python3 >= 3.11" \
     --depends "python3-venv" \
     --depends "dnsmasq" \
     --depends "libnotify-bin" \

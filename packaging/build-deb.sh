@@ -99,7 +99,7 @@ fpm -s dir -t deb \
     --depends "dnsmasq" \
     --depends "libnotify-bin" \
     --depends "network-manager" \
-    --config-files /etc/kidlock/config.yaml \
+    --deb-no-default-config-files \
     --before-install "$SCRIPT_DIR/debian/preinst" \
     --after-install "$SCRIPT_DIR/debian/postinst" \
     --before-remove "$SCRIPT_DIR/debian/prerm" \

@@ -7,11 +7,14 @@ mqtt:
 # device:
 #   hostname: "custom-name"  # Optional: defaults to system hostname
 
+# User(s) to control - REQUIRED
+# The service runs as root and enforces limits on these users
+users:
+  - username: "kid"
+    daily_minutes: 180        # 3 hours max per day (0 = unlimited)
+    schedule:
+      weekday: "15:00-20:00"
+      weekend: "09:00-21:00"
+
 activity:
   poll_interval: 10  # Seconds between activity updates
-
-limits:
-  daily_minutes: 180  # 3 hours max per day
-  schedule:
-    weekday: "15:00-20:00"
-    weekend: "09:00-21:00"

@@ -1,59 +1,50 @@
-# Kidlock - Parental Screen Control via MQTT
+# Kidlock - Parental Control via MQTT
 
-A cross-platform (Linux + Windows) parental control agent that integrates with Home Assistant via MQTT.
+A Linux parental control agent that integrates with Home Assistant via MQTT. Runs as a system service with PAM integration for effective enforcement.
 
 ## Features
 
-- **Lock/unlock screen** - Remotely lock the computer
-- **Shutdown/restart** - With configurable delay and warning popup
-- **Activity tracking** - Active window title + idle time
-- **Time limits** - Auto-lock after X hours of daily use
-- **Schedule** - Allowed usage hours (weekday/weekend)
-- **Website blocking** - DNS-based whitelist mode (Linux only, via dnsmasq)
-- **Remote settings** - Update limits and schedules from Home Assistant
+- **Hard login blocking** - PAM integration prevents login outside allowed hours
+- **Force logout** - Automatically logs out users when time limit reached
+- **Time tracking** - Per-user daily usage tracking with persistent state
+- **Schedule enforcement** - Weekday/weekend allowed hours
+- **Website blocking** - DNS-based whitelist mode (via dnsmasq)
+- **Remote control** - Lock/unlock users via MQTT from Home Assistant
+- **Multi-user** - Control multiple users with individual limits
 - **LWT** - Offline detection via MQTT Last Will Testament
+
+## How It Works
+
+1. **System service** runs as root - can't be stopped by controlled users
+2. **PAM module** blocks login during restricted hours
+3. **Continuous enforcement** checks every 10 seconds and force-logs out users who shouldn't be logged in
+4. **State persistence** survives reboots - usage tracking continues
 
 ## Requirements
 
+- Linux with systemd (Debian/Ubuntu/Mint, Fedora, Arch)
 - Python 3.8+
 - MQTT broker (e.g., Mosquitto in Home Assistant)
-
-### Linux Dependencies
-
-The install script automatically installs all dependencies (supports apt, dnf, pacman):
-- `xdotool` - Window detection
-- `xprintidle` - Idle time tracking
-- `zenity` - Warning popups
-- `dnsmasq` - DNS-based website blocking
-
-### Windows Dependencies
-
-No additional dependencies required (uses Win32 API).
-
-**Note:** Website blocking is currently only supported on Linux.
+- NetworkManager (for DNS blocking)
 
 ## Installation
 
-### Linux
-
 ```bash
 cd kidlock
-chmod +x install-linux.sh
-./install-linux.sh
+sudo ./install-linux.sh
 ```
 
-### Windows
-
-Run PowerShell as Administrator:
-
-```powershell
-cd kidlock
-powershell -ExecutionPolicy Bypass -File install-windows.ps1
-```
+The installer will:
+1. Install dependencies (python3, dnsmasq)
+2. Install to `/opt/kidlock`
+3. Create config at `/etc/kidlock/config.yaml`
+4. Set up PAM integration for login blocking
+5. Create and start systemd service
+6. Open config for editing
 
 ## Configuration
 
-Edit `~/.config/kidlock/config.yaml` (Linux) or `%LOCALAPPDATA%\kidlock\config.yaml` (Windows):
+Edit `/etc/kidlock/config.yaml`:
 
 ```yaml
 mqtt:
@@ -62,17 +53,33 @@ mqtt:
   username: "mqtt_user"
   password: "mqtt_pass"
 
-# device:
-#   hostname: "custom-name"  # Optional: defaults to system hostname
+# Users to control
+users:
+  - username: "kid"
+    daily_minutes: 180        # 3 hours max (0 = unlimited)
+    schedule:
+      weekday: "15:00-20:00"  # Allowed hours on weekdays
+      weekend: "09:00-21:00"  # Allowed hours on weekends
 
 activity:
-  poll_interval: 10  # Seconds
+  poll_interval: 10  # Seconds between checks
+```
 
-limits:
-  daily_minutes: 180  # 3 hours (0 = unlimited)
-  schedule:
-    weekday: "15:00-20:00"
-    weekend: "09:00-21:00"
+### Multiple Users
+
+```yaml
+users:
+  - username: "alice"
+    daily_minutes: 120
+    schedule:
+      weekday: "16:00-19:00"
+      weekend: "10:00-20:00"
+
+  - username: "bob"
+    daily_minutes: 180
+    schedule:
+      weekday: "15:00-20:00"
+      weekend: "09:00-21:00"
 ```
 
 ## MQTT Topics
@@ -80,153 +87,106 @@ limits:
 | Topic | Description |
 |-------|-------------|
 | `parental/{hostname}/status` | Device status (online/offline) |
-| `parental/{hostname}/activity` | Active window, idle time, usage, blocking status |
+| `parental/{hostname}/user/{username}` | Per-user activity and status |
 | `parental/{hostname}/command` | Command input |
-| `parental/{hostname}/settings` | Settings input (limits, schedule, blocking) |
+| `parental/{hostname}/settings` | Settings input |
 
-### Status Payload
-
-```json
-{"state": "online"}
-```
-
-### Activity Payload
+### User Status Payload
 
 ```json
 {
-  "active_window": "Firefox",
-  "idle_seconds": 45,
+  "username": "kid",
+  "active": true,
   "usage_minutes": 87,
-  "blocking_enabled": true
-}
-```
-
-### Settings Payload
-
-Settings are typically sent from Home Assistant to update limits and blocking:
-
-```json
-{
-  "daily_minutes": 180,
-  "weekday_start": "15:00:00",
-  "weekday_end": "20:00:00",
-  "weekend_start": "09:00:00",
-  "weekend_end": "21:00:00",
-  "blocking_enabled": true,
-  "whitelist": "google.com, youtube.com, wikipedia.org"
+  "daily_limit": 180,
+  "blocked": false,
+  "block_reason": "",
+  "blocking_enabled": false
 }
 ```
 
 ### Commands
 
-Lock screen:
+Lock user (force logout):
+```json
+{"action": "lock", "user": "kid"}
+```
+
+Lock all controlled users:
 ```json
 {"action": "lock"}
 ```
 
-Shutdown with warning:
+Unlock user (allow login again):
 ```json
-{"action": "shutdown", "delay": 60, "warning": true}
+{"action": "unlock", "user": "kid"}
 ```
 
-Restart:
+Shutdown:
 ```json
-{"action": "restart", "delay": 30, "warning": true}
+{"action": "shutdown", "delay": 60}
 ```
 
-Cancel pending shutdown:
+## Website Blocking
+
+DNS-based blocking uses NetworkManager's dnsmasq plugin. When enabled:
+- All domains blocked by default
+- Only whitelisted domains can resolve
+
+Control via MQTT settings:
 ```json
-{"action": "cancel"}
+{
+  "blocking_enabled": true,
+  "whitelist": "google.com, wikipedia.org, school.edu"
+}
 ```
 
-Unlock screen (Windows only):
-```json
-{"action": "unlock"}
-```
-
-## Website Blocking (Linux)
-
-DNS-based website blocking uses dnsmasq to implement a whitelist mode. When enabled:
-- All domains are blocked by default (return NXDOMAIN)
-- Only whitelisted domains can resolve via upstream DNS (8.8.8.8)
-- Includes default whitelist: google.com, googleapis.com, gstatic.com, duckduckgo.com, wikipedia.org, wikimedia.org, cloudflare.com, akamaihd.net
-
-Control via Home Assistant:
-- Toggle `input_boolean.kidlock_blocking_enabled` to enable/disable
-- Edit `input_text.kidlock_whitelist` with comma-separated domains
-
-The installer configures:
-- NetworkManager to use local dnsmasq for DNS
-- Sudoers rules for passwordless dnsmasq management
-
-## Home Assistant Setup
-
-Copy `homeassistant/kidlock.yaml` to your Home Assistant config:
-
-```bash
-cp homeassistant/kidlock.yaml /config/packages/kidlock.yaml
-```
-
-Add to `configuration.yaml`:
-
-```yaml
-homeassistant:
-  packages:
-    kidlock: !include packages/kidlock.yaml
-```
-
-Restart Home Assistant.
-
-## Manual Testing
-
-```bash
-# Linux
-python3 -m agent.main -c ~/.config/kidlock/config.yaml -v
-
-# Windows
-python -m agent.main -c %LOCALAPPDATA%\kidlock\config.yaml -v
-```
+Default whitelist includes: google.com, googleapis.com, gstatic.com, duckduckgo.com, wikipedia.org, wikimedia.org, cloudflare.com, akamaihd.net
 
 ## Service Management
 
-### Linux (systemd)
-
 ```bash
-systemctl --user enable kidlock
-systemctl --user start kidlock
-systemctl --user status kidlock
-journalctl --user -u kidlock -f
+# Status
+sudo systemctl status kidlock
+
+# Logs
+sudo journalctl -u kidlock -f
+
+# Restart after config change
+sudo systemctl restart kidlock
+
+# Stop
+sudo systemctl stop kidlock
 ```
 
-### Windows (Task Scheduler)
+## Uninstall
 
-```powershell
-Start-ScheduledTask -TaskName Kidlock
-Get-ScheduledTask -TaskName Kidlock
-Stop-ScheduledTask -TaskName Kidlock
+```bash
+sudo ./uninstall-linux.sh
 ```
 
 ## Troubleshooting
 
-### Linux: Screen lock not working
+### User can still log in during blocked hours
 
-Try alternative commands:
-```bash
-# Test each to see which works
-loginctl lock-session
-xdg-screensaver lock
-gnome-screensaver-command -l
-```
+1. Check PAM is configured: `grep kidlock /etc/pam.d/common-auth`
+2. Check service is running: `systemctl status kidlock`
+3. Check state file: `cat /var/lib/kidlock/state.json`
 
-### Windows: Scheduled task not starting
+### Service won't start
 
-1. Open Task Scheduler
-2. Find "Kidlock" task
-3. Right-click → Run
-4. Check "History" tab for errors
+1. Check config syntax: `python3 -c "import yaml; yaml.safe_load(open('/etc/kidlock/config.yaml'))"`
+2. Check logs: `journalctl -u kidlock -e`
 
 ### MQTT connection issues
 
 1. Verify broker address and credentials
 2. Check broker logs
 3. Test with `mosquitto_pub`/`mosquitto_sub`
+
+## Security Notes
+
+- Config file contains MQTT credentials - readable only by root
+- Service runs as root for enforcement capability
+- PAM integration affects all login methods (console, GUI, SSH)
+- Controlled users cannot stop the service

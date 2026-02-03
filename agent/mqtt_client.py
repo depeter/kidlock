@@ -115,7 +115,7 @@ class MqttClient:
         usage_minutes: int = 0,
         blocking_enabled: bool = False,
     ) -> None:
-        """Publish activity data."""
+        """Publish activity data (legacy single-user mode)."""
         if self._client:
             payload = json.dumps({
                 "active_window": active_window or "",
@@ -125,6 +125,31 @@ class MqttClient:
             })
             self._client.publish(self.topic_activity, payload, qos=0, retain=False)
             log.debug(f"Published activity: window={active_window}, idle={idle_seconds}s, blocking={blocking_enabled}")
+
+    def publish_user_activity(
+        self,
+        username: str,
+        active: bool,
+        usage_minutes: int,
+        blocked: bool,
+        block_reason: str,
+        daily_limit: int,
+        blocking_enabled: bool = False,
+    ) -> None:
+        """Publish per-user activity data."""
+        if self._client:
+            topic = f"{self.config.topic_prefix}/user/{username}"
+            payload = json.dumps({
+                "username": username,
+                "active": active,
+                "usage_minutes": usage_minutes,
+                "daily_limit": daily_limit,
+                "blocked": blocked,
+                "block_reason": block_reason,
+                "blocking_enabled": blocking_enabled,
+            })
+            self._client.publish(topic, payload, qos=0, retain=True)
+            log.debug(f"Published user activity: {username} active={active} usage={usage_minutes}m")
 
     def _on_connect(
         self,

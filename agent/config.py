@@ -1,10 +1,9 @@
 """Configuration handling for Kidlock agent."""
 
-import os
 import socket
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import yaml
 
@@ -23,28 +22,30 @@ class DeviceConfig:
 
 
 @dataclass
-class ActivityConfig:
-    poll_interval: int = 10  # seconds
-
-
-@dataclass
 class ScheduleConfig:
     weekday: str = "00:00-23:59"
     weekend: str = "00:00-23:59"
 
 
 @dataclass
-class LimitsConfig:
+class UserConfig:
+    """Configuration for a controlled user."""
+    username: str
     daily_minutes: int = 0  # 0 = unlimited
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
+
+
+@dataclass
+class ActivityConfig:
+    poll_interval: int = 10  # seconds
 
 
 @dataclass
 class Config:
     mqtt: MqttConfig = field(default_factory=MqttConfig)
     device: DeviceConfig = field(default_factory=DeviceConfig)
+    users: List[UserConfig] = field(default_factory=list)
     activity: ActivityConfig = field(default_factory=ActivityConfig)
-    limits: LimitsConfig = field(default_factory=LimitsConfig)
 
     @classmethod
     def load(cls, path: Path) -> "Config":
@@ -74,6 +75,20 @@ class Config:
                 hostname=device_data.get("hostname", socket.gethostname())
             )
 
+        # Users config
+        if "users" in data:
+            for user_data in data["users"]:
+                schedule_data = user_data.get("schedule", {})
+                user = UserConfig(
+                    username=user_data["username"],
+                    daily_minutes=user_data.get("daily_minutes", 0),
+                    schedule=ScheduleConfig(
+                        weekday=schedule_data.get("weekday", "00:00-23:59"),
+                        weekend=schedule_data.get("weekend", "00:00-23:59"),
+                    ),
+                )
+                config.users.append(user)
+
         # Activity config
         if "activity" in data:
             activity_data = data["activity"]
@@ -83,21 +98,14 @@ class Config:
                 )
             )
 
-        # Limits config
-        if "limits" in data:
-            limits_data = data["limits"]
-            schedule_data = limits_data.get("schedule", {})
-            config.limits = LimitsConfig(
-                daily_minutes=limits_data.get(
-                    "daily_minutes", config.limits.daily_minutes
-                ),
-                schedule=ScheduleConfig(
-                    weekday=schedule_data.get("weekday", "00:00-23:59"),
-                    weekend=schedule_data.get("weekend", "00:00-23:59"),
-                ),
-            )
-
         return config
+
+    def get_user(self, username: str) -> Optional[UserConfig]:
+        """Get config for a specific user."""
+        for user in self.users:
+            if user.username == username:
+                return user
+        return None
 
     @property
     def topic_prefix(self) -> str:

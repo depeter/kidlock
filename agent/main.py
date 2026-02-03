@@ -2,60 +2,84 @@
 
 import argparse
 import logging
+import os
 import signal
 import sys
 import time
 from pathlib import Path
 from typing import Optional
 
-from .activity import ActivityMonitor
-from .commands import CommandHandler
 from .config import Config
 from .dns_blocker import DnsBlocker
+from .enforcer import Enforcer
 from .mqtt_client import MqttClient
-from .platform import get_platform
-from .scheduler import Scheduler
 
 log = logging.getLogger(__name__)
 
+# Default config paths
+SYSTEM_CONFIG = Path("/etc/kidlock/config.yaml")
+USER_CONFIG = Path.home() / ".config/kidlock/config.yaml"
+
 
 class KidlockAgent:
-    """Main Kidlock agent."""
+    """Main Kidlock agent - runs as root system service."""
 
     def __init__(self, config: Config):
         self.config = config
-        self.platform = get_platform()
         self._running = False
 
         # Initialize components
-        self.command_handler = CommandHandler(self.platform)
+        self.enforcer = Enforcer()
         self.dns_blocker = DnsBlocker()
         self.mqtt_client = MqttClient(config, self._on_command, self._on_settings)
-        self.activity_monitor = ActivityMonitor(
-            self.platform,
-            config.activity.poll_interval,
-            self._on_activity,
-        )
-        self.scheduler = Scheduler(
-            self.platform,
-            config.limits,
-            self._on_limit_reached,
-        )
+
+        # Track last check time for usage accounting
+        self._last_check = time.time()
 
     def _on_command(self, command: dict) -> None:
         """Handle incoming MQTT command."""
-        self.command_handler.handle(command)
+        action = command.get("action", "").lower()
+        username = command.get("user")  # Optional: target specific user
+
+        if action == "lock":
+            # Force logout specified user or all controlled users
+            if username:
+                user_config = self.config.get_user(username)
+                if user_config:
+                    self.enforcer.force_logout(username, "Remote lock command")
+            else:
+                for user in self.config.users:
+                    self.enforcer.force_logout(user.username, "Remote lock command")
+
+        elif action == "unlock":
+            # Unblock specified user or all controlled users
+            if username:
+                self.enforcer.unblock_user(username)
+            else:
+                for user in self.config.users:
+                    self.enforcer.unblock_user(user.username)
+
+        elif action == "shutdown":
+            delay = command.get("delay", 0)
+            os.system(f"shutdown -h +{max(1, delay // 60)}")
+
+        elif action == "restart":
+            delay = command.get("delay", 0)
+            os.system(f"shutdown -r +{max(1, delay // 60)}")
+
+        elif action == "cancel":
+            os.system("shutdown -c")
+
+        else:
+            log.warning(f"Unknown command: {action}")
 
     def _on_settings(self, settings: dict) -> None:
         """Handle incoming settings update from HA."""
-        self.scheduler.update_limits(settings)
-
         # Handle DNS blocking settings
         if "blocking_enabled" in settings:
             self.dns_blocker.set_enabled(bool(settings["blocking_enabled"]))
 
         if "whitelist" in settings:
-            # Whitelist comes as comma-separated string from HA
             whitelist_str = settings["whitelist"]
             if isinstance(whitelist_str, str):
                 domains = [d.strip() for d in whitelist_str.split(",") if d.strip()]
@@ -63,38 +87,69 @@ class KidlockAgent:
                 domains = whitelist_str or []
             self.dns_blocker.update_whitelist(domains)
 
-    def _on_activity(self, active_window: Optional[str], idle_seconds: int) -> None:
-        """Handle activity update."""
-        self.mqtt_client.publish_activity(
-            active_window,
-            idle_seconds,
-            self.scheduler.usage_minutes,
-            self.dns_blocker.enabled,
+        # TODO: Handle per-user settings updates
+
+    def _check_and_enforce(self) -> None:
+        """Check all controlled users and enforce rules."""
+        logged_in = self.enforcer.get_logged_in_users()
+
+        for user_config in self.config.users:
+            username = user_config.username
+            is_logged_in = username in logged_in
+
+            # Check if user should be allowed
+            allowed, reason = self.enforcer.check_user(user_config)
+
+            if is_logged_in:
+                if not allowed:
+                    # User is logged in but shouldn't be - force logout
+                    self.enforcer.force_logout(username, reason)
+                else:
+                    # User is logged in and allowed - track usage
+                    self.enforcer.unblock_user(username)  # Ensure not blocked
+
+            # Publish status for each user
+            self._publish_user_status(user_config, is_logged_in and allowed)
+
+    def _publish_user_status(self, user_config, is_active: bool) -> None:
+        """Publish status for a user to MQTT."""
+        username = user_config.username
+        usage = self.enforcer.get_usage_minutes(username)
+        state = self.enforcer.get_user_state(username)
+
+        self.mqtt_client.publish_user_activity(
+            username=username,
+            active=is_active,
+            usage_minutes=usage,
+            blocked=state.blocked,
+            block_reason=state.block_reason,
+            daily_limit=user_config.daily_minutes,
+            blocking_enabled=self.dns_blocker.enabled,
         )
 
-    def _on_limit_reached(self, reason: str) -> None:
-        """Handle limit reached event."""
-        if reason == "daily_limit":
-            self.platform.show_warning(
-                "Time Limit Reached",
-                "You have used all your screen time for today. "
-                "The screen will now be locked.",
-            )
-        elif reason == "schedule":
-            self.platform.show_warning(
-                "Outside Allowed Hours",
-                "Screen time is not allowed at this hour. "
-                "The screen will now be locked.",
-            )
+    def _account_usage(self) -> None:
+        """Account usage time for logged-in users."""
+        now = time.time()
+        elapsed_minutes = int((now - self._last_check) / 60)
+        self._last_check = now
 
-        # Lock the screen after warning
-        time.sleep(2)
-        self.platform.lock_screen()
+        if elapsed_minutes < 1:
+            return
+
+        logged_in = self.enforcer.get_logged_in_users()
+
+        for user_config in self.config.users:
+            if user_config.username in logged_in:
+                self.enforcer.add_usage(user_config.username, elapsed_minutes)
 
     def run(self) -> None:
         """Run the agent."""
-        log.info(f"Starting Kidlock agent on {self.platform.name}")
+        log.info(f"Starting Kidlock agent (system service)")
         log.info(f"Hostname: {self.config.device.hostname}")
+        log.info(f"Controlling users: {[u.username for u in self.config.users]}")
+
+        if os.geteuid() != 0:
+            log.warning("Not running as root - enforcement may not work!")
 
         # Connect to MQTT
         self.mqtt_client.connect()
@@ -102,17 +157,17 @@ class KidlockAgent:
             log.error("Failed to connect to MQTT broker")
             sys.exit(1)
 
-        # Start components
-        self.activity_monitor.start()
-        self.scheduler.start()
-
         self._running = True
+        self._last_check = time.time()
         log.info("Kidlock agent running")
 
         # Main loop
+        check_interval = self.config.activity.poll_interval
         try:
             while self._running:
-                time.sleep(1)
+                self._check_and_enforce()
+                self._account_usage()
+                time.sleep(check_interval)
         except KeyboardInterrupt:
             log.info("Interrupted by user")
         finally:
@@ -122,8 +177,6 @@ class KidlockAgent:
         """Stop the agent."""
         log.info("Stopping Kidlock agent")
         self._running = False
-        self.activity_monitor.stop()
-        self.scheduler.stop()
         self.mqtt_client.disconnect()
 
 
@@ -140,13 +193,12 @@ def setup_logging(verbose: bool = False) -> None:
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Kidlock - Parental Screen Control Agent"
+        description="Kidlock - Parental Control Agent (System Service)"
     )
     parser.add_argument(
         "-c", "--config",
         type=Path,
-        default=Path("config.yaml"),
-        help="Path to config file (default: config.yaml)",
+        help=f"Path to config file (default: {SYSTEM_CONFIG} or {USER_CONFIG})",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -157,11 +209,26 @@ def main() -> None:
 
     setup_logging(args.verbose)
 
+    # Find config file
+    if args.config:
+        config_path = args.config
+    elif SYSTEM_CONFIG.exists():
+        config_path = SYSTEM_CONFIG
+    elif USER_CONFIG.exists():
+        config_path = USER_CONFIG
+    else:
+        log.error(f"No config file found at {SYSTEM_CONFIG} or {USER_CONFIG}")
+        sys.exit(1)
+
     # Load config
     try:
-        config = Config.load(args.config)
+        config = Config.load(config_path)
     except FileNotFoundError as e:
         log.error(str(e))
+        sys.exit(1)
+
+    if not config.users:
+        log.error("No users configured - add 'users:' section to config")
         sys.exit(1)
 
     # Create and run agent

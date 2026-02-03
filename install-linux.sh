@@ -148,15 +148,39 @@ echo "Restarting NetworkManager..."
 sudo systemctl restart NetworkManager
 
 echo ""
+echo "=== Configuration ==="
+echo ""
+echo "Opening config file for editing..."
+echo "Set your MQTT broker, username, and password."
+echo ""
+read -p "Press Enter to open nano..."
+nano "$CONFIG_DIR/config.yaml"
+
+echo ""
+echo "=== Service Setup ==="
+echo ""
+read -p "Enable and start kidlock service now? [Y/n] " -n 1 -r
+echo ""
+if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user enable "$SERVICE_NAME"
+    systemctl --user start "$SERVICE_NAME"
+    echo "Service enabled and started."
+
+    read -p "Enable service to start at boot (before login)? [Y/n] " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        sudo loginctl enable-linger "$USER"
+        echo "Linger enabled - service will start at boot."
+    fi
+fi
+
+echo ""
 echo "=== Installation Complete ==="
 echo ""
-echo "Next steps:"
-echo "1. Edit config: nano $CONFIG_DIR/config.yaml"
-echo "2. Test manually: $VENV_DIR/bin/python -m agent.main -c $CONFIG_DIR/config.yaml -v"
-echo "3. Enable service: systemctl --user enable $SERVICE_NAME"
-echo "4. Start service: systemctl --user start $SERVICE_NAME"
-echo "5. Check status: systemctl --user status $SERVICE_NAME"
-echo "6. View logs: journalctl --user -u $SERVICE_NAME -f"
-echo ""
-echo "To enable service to start at boot (before login):"
-echo "  sudo loginctl enable-linger $USER"
+echo "Useful commands:"
+echo "  Status:  systemctl --user status $SERVICE_NAME"
+echo "  Logs:    journalctl --user -u $SERVICE_NAME -f"
+echo "  Stop:    systemctl --user stop $SERVICE_NAME"
+echo "  Restart: systemctl --user restart $SERVICE_NAME"
+echo "  Config:  nano $CONFIG_DIR/config.yaml"

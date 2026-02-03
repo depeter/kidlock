@@ -9,6 +9,8 @@ A cross-platform (Linux + Windows) parental control agent that integrates with H
 - **Activity tracking** - Active window title + idle time
 - **Time limits** - Auto-lock after X hours of daily use
 - **Schedule** - Allowed usage hours (weekday/weekend)
+- **Website blocking** - DNS-based whitelist mode (Linux only, via dnsmasq)
+- **Remote settings** - Update limits and schedules from Home Assistant
 - **LWT** - Offline detection via MQTT Last Will Testament
 
 ## Requirements
@@ -18,13 +20,17 @@ A cross-platform (Linux + Windows) parental control agent that integrates with H
 
 ### Linux Dependencies
 
-```bash
-sudo apt install xdotool xprintidle zenity
-```
+The install script automatically installs all dependencies (supports apt, dnf, pacman):
+- `xdotool` - Window detection
+- `xprintidle` - Idle time tracking
+- `zenity` - Warning popups
+- `dnsmasq` - DNS-based website blocking
 
 ### Windows Dependencies
 
 No additional dependencies required (uses Win32 API).
+
+**Note:** Website blocking is currently only supported on Linux.
 
 ## Installation
 
@@ -74,8 +80,9 @@ limits:
 | Topic | Description |
 |-------|-------------|
 | `parental/{hostname}/status` | Device status (online/offline) |
-| `parental/{hostname}/activity` | Active window, idle time, usage |
+| `parental/{hostname}/activity` | Active window, idle time, usage, blocking status |
 | `parental/{hostname}/command` | Command input |
+| `parental/{hostname}/settings` | Settings input (limits, schedule, blocking) |
 
 ### Status Payload
 
@@ -89,7 +96,24 @@ limits:
 {
   "active_window": "Firefox",
   "idle_seconds": 45,
-  "usage_minutes": 87
+  "usage_minutes": 87,
+  "blocking_enabled": true
+}
+```
+
+### Settings Payload
+
+Settings are typically sent from Home Assistant to update limits and blocking:
+
+```json
+{
+  "daily_minutes": 180,
+  "weekday_start": "15:00:00",
+  "weekday_end": "20:00:00",
+  "weekend_start": "09:00:00",
+  "weekend_end": "21:00:00",
+  "blocking_enabled": true,
+  "whitelist": "google.com, youtube.com, wikipedia.org"
 }
 ```
 
@@ -114,6 +138,26 @@ Cancel pending shutdown:
 ```json
 {"action": "cancel"}
 ```
+
+Unlock screen (Windows only):
+```json
+{"action": "unlock"}
+```
+
+## Website Blocking (Linux)
+
+DNS-based website blocking uses dnsmasq to implement a whitelist mode. When enabled:
+- All domains are blocked by default (return NXDOMAIN)
+- Only whitelisted domains can resolve via upstream DNS (8.8.8.8)
+- Includes default whitelist: google.com, googleapis.com, gstatic.com, duckduckgo.com, wikipedia.org, wikimedia.org, cloudflare.com, akamaihd.net
+
+Control via Home Assistant:
+- Toggle `input_boolean.kidlock_blocking_enabled` to enable/disable
+- Edit `input_text.kidlock_whitelist` with comma-separated domains
+
+The installer configures:
+- NetworkManager to use local dnsmasq for DNS
+- Sudoers rules for passwordless dnsmasq management
 
 ## Home Assistant Setup
 

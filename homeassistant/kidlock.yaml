@@ -1,8 +1,9 @@
-# Kidlock Home Assistant Package
-# Copy to: config/packages/kidlock.yaml
-# Or include in configuration.yaml
+# Kidlock Home Assistant Package - Optional Extras
+#
+# Entities are auto-discovered via MQTT - this file is optional.
+# Use this for custom automations, input helpers, etc.
 
-# Input helpers for website blocking
+# Input helpers for website blocking (optional)
 input_boolean:
   kidlock_blocking_enabled:
     name: "Website Blocking"
@@ -13,58 +14,18 @@ input_text:
     name: "Allowed Websites"
     max: 2048
     icon: mdi:format-list-bulleted
-    # Comma-separated: "google.com, youtube.com, wikipedia.org"
+    # Comma-separated: "google.com, youtube.com, school.edu"
 
-# Input helpers for schedule management
-input_number:
-  kidlock_daily_limit:
-    name: "Daily Screen Time Limit"
-    min: 0
-    max: 480
-    step: 15
-    unit_of_measurement: "min"
-    icon: mdi:timer-outline
-    mode: slider
-
-input_datetime:
-  kidlock_weekday_start:
-    name: "Weekday Start Time"
-    has_date: false
-    has_time: true
-    icon: mdi:clock-start
-
-  kidlock_weekday_end:
-    name: "Weekday End Time"
-    has_date: false
-    has_time: true
-    icon: mdi:clock-end
-
-  kidlock_weekend_start:
-    name: "Weekend Start Time"
-    has_date: false
-    has_time: true
-    icon: mdi:clock-start
-
-  kidlock_weekend_end:
-    name: "Weekend End Time"
-    has_date: false
-    has_time: true
-    icon: mdi:clock-end
-
-# Automation to publish settings to both laptops
+# Example automation to publish blocking settings
+# Adjust the hostname in the topic to match your device
 automation:
-  - id: kidlock_publish_settings
-    alias: "Kidlock: Publish Settings"
-    description: "Push schedule and blocking settings to laptops when changed"
+  - id: kidlock_publish_blocking_settings
+    alias: "Kidlock: Publish Blocking Settings"
+    description: "Push website blocking settings when changed"
     mode: restart
     trigger:
       - platform: state
         entity_id:
-          - input_number.kidlock_daily_limit
-          - input_datetime.kidlock_weekday_start
-          - input_datetime.kidlock_weekday_end
-          - input_datetime.kidlock_weekend_start
-          - input_datetime.kidlock_weekend_end
           - input_boolean.kidlock_blocking_enabled
           - input_text.kidlock_whitelist
       - platform: homeassistant
@@ -72,199 +33,27 @@ automation:
     action:
       - delay:
           seconds: 5
+      # Publish to each device - adjust hostnames as needed
       - service: mqtt.publish
         data:
-          topic: "parental/mint-laptop/settings"
+          topic: "parental/{{ states('sensor.kidlock_hostname') | default('localhost') }}/settings"
           payload: >
             {
-              "daily_minutes": {{ states('input_number.kidlock_daily_limit') | int }},
-              "weekday_start": "{{ states('input_datetime.kidlock_weekday_start') }}",
-              "weekday_end": "{{ states('input_datetime.kidlock_weekday_end') }}",
-              "weekend_start": "{{ states('input_datetime.kidlock_weekend_start') }}",
-              "weekend_end": "{{ states('input_datetime.kidlock_weekend_end') }}",
-              "blocking_enabled": {{ is_state('input_boolean.kidlock_blocking_enabled', 'on') | lower }},
-              "whitelist": "{{ states('input_text.kidlock_whitelist') }}"
-            }
-          retain: true
-      - service: mqtt.publish
-        data:
-          topic: "parental/win-laptop/settings"
-          payload: >
-            {
-              "daily_minutes": {{ states('input_number.kidlock_daily_limit') | int }},
-              "weekday_start": "{{ states('input_datetime.kidlock_weekday_start') }}",
-              "weekday_end": "{{ states('input_datetime.kidlock_weekday_end') }}",
-              "weekend_start": "{{ states('input_datetime.kidlock_weekend_start') }}",
-              "weekend_end": "{{ states('input_datetime.kidlock_weekend_end') }}",
               "blocking_enabled": {{ is_state('input_boolean.kidlock_blocking_enabled', 'on') | lower }},
               "whitelist": "{{ states('input_text.kidlock_whitelist') }}"
             }
           retain: true
 
-# MQTT Sensors
-mqtt:
-  sensor:
-    # Mint Laptop Status
-    - name: "Mint Laptop Status"
-      state_topic: "parental/mint-laptop/status"
-      value_template: "{{ value_json.state }}"
-      icon: mdi:laptop
-
-    # Mint Laptop Active Window
-    - name: "Mint Laptop Active Window"
-      state_topic: "parental/mint-laptop/activity"
-      value_template: "{{ value_json.active_window | truncate(50) }}"
-      icon: mdi:application
-
-    # Mint Laptop Idle Time
-    - name: "Mint Laptop Idle"
-      state_topic: "parental/mint-laptop/activity"
-      value_template: "{{ value_json.idle_seconds }}"
-      unit_of_measurement: "s"
-      icon: mdi:timer-sand
-
-    # Mint Laptop Usage Today
-    - name: "Mint Laptop Usage"
-      state_topic: "parental/mint-laptop/activity"
-      value_template: "{{ value_json.usage_minutes }}"
-      unit_of_measurement: "min"
-      icon: mdi:clock-outline
-
-    # Mint Laptop Blocking Status
-    - name: "Mint Laptop Blocking"
-      state_topic: "parental/mint-laptop/activity"
-      value_template: "{{ 'on' if value_json.blocking_enabled else 'off' }}"
-      icon: mdi:shield-lock
-
-    # Windows Laptop Status
-    - name: "Win Laptop Status"
-      state_topic: "parental/win-laptop/status"
-      value_template: "{{ value_json.state }}"
-      icon: mdi:laptop
-
-    # Windows Laptop Active Window
-    - name: "Win Laptop Active Window"
-      state_topic: "parental/win-laptop/activity"
-      value_template: "{{ value_json.active_window | truncate(50) }}"
-      icon: mdi:application
-
-    # Windows Laptop Idle Time
-    - name: "Win Laptop Idle"
-      state_topic: "parental/win-laptop/activity"
-      value_template: "{{ value_json.idle_seconds }}"
-      unit_of_measurement: "s"
-      icon: mdi:timer-sand
-
-    # Windows Laptop Usage Today
-    - name: "Win Laptop Usage"
-      state_topic: "parental/win-laptop/activity"
-      value_template: "{{ value_json.usage_minutes }}"
-      unit_of_measurement: "min"
-      icon: mdi:clock-outline
-
-    # Windows Laptop Blocking Status
-    - name: "Win Laptop Blocking"
-      state_topic: "parental/win-laptop/activity"
-      value_template: "{{ 'on' if value_json.blocking_enabled else 'off' }}"
-      icon: mdi:shield-lock
-
-  binary_sensor:
-    # Mint Laptop Online
-    - name: "Mint Laptop Online"
-      state_topic: "parental/mint-laptop/status"
-      value_template: "{{ value_json.state }}"
-      payload_on: "online"
-      payload_off: "offline"
-      device_class: connectivity
-
-    # Windows Laptop Online
-    - name: "Win Laptop Online"
-      state_topic: "parental/win-laptop/status"
-      value_template: "{{ value_json.state }}"
-      payload_on: "online"
-      payload_off: "offline"
-      device_class: connectivity
-
-  button:
-    # Mint Laptop Lock
-    - name: "Mint Laptop Lock"
-      command_topic: "parental/mint-laptop/command"
-      payload_press: '{"action": "lock"}'
-      icon: mdi:lock
-
-    # Mint Laptop Shutdown
-    - name: "Mint Laptop Shutdown"
-      command_topic: "parental/mint-laptop/command"
-      payload_press: '{"action": "shutdown", "delay": 60, "warning": true}'
-      icon: mdi:power
-
-    # Mint Laptop Restart
-    - name: "Mint Laptop Restart"
-      command_topic: "parental/mint-laptop/command"
-      payload_press: '{"action": "restart", "delay": 60, "warning": true}'
-      icon: mdi:restart
-
-    # Mint Laptop Cancel
-    - name: "Mint Laptop Cancel Shutdown"
-      command_topic: "parental/mint-laptop/command"
-      payload_press: '{"action": "cancel"}'
-      icon: mdi:cancel
-
-    # Windows Laptop Lock
-    - name: "Win Laptop Lock"
-      command_topic: "parental/win-laptop/command"
-      payload_press: '{"action": "lock"}'
-      icon: mdi:lock
-
-    # Windows Laptop Shutdown
-    - name: "Win Laptop Shutdown"
-      command_topic: "parental/win-laptop/command"
-      payload_press: '{"action": "shutdown", "delay": 60, "warning": true}'
-      icon: mdi:power
-
-    # Windows Laptop Restart
-    - name: "Win Laptop Restart"
-      command_topic: "parental/win-laptop/command"
-      payload_press: '{"action": "restart", "delay": 60, "warning": true}'
-      icon: mdi:restart
-
-    # Windows Laptop Cancel
-    - name: "Win Laptop Cancel Shutdown"
-      command_topic: "parental/win-laptop/command"
-      payload_press: '{"action": "cancel"}'
-      icon: mdi:cancel
-
-# Template sensors for formatted display
-template:
-  - sensor:
-      - name: "Mint Laptop Idle Formatted"
-        state: >
-          {% set s = states('sensor.mint_laptop_idle') | int(0) %}
-          {% if s < 60 %}
-            {{ s }}s
-          {% elif s < 3600 %}
-            {{ (s // 60) }}m {{ s % 60 }}s
-          {% else %}
-            {{ (s // 3600) }}h {{ (s % 3600) // 60 }}m
-          {% endif %}
-
-      - name: "Mint Laptop Usage Formatted"
-        state: >
-          {% set m = states('sensor.mint_laptop_usage') | int(0) %}
-          {{ (m // 60) }}h {{ m % 60 }}m
-
-      - name: "Win Laptop Idle Formatted"
-        state: >
-          {% set s = states('sensor.win_laptop_idle') | int(0) %}
-          {% if s < 60 %}
-            {{ s }}s
-          {% elif s < 3600 %}
-            {{ (s // 60) }}m {{ s % 60 }}s
-          {% else %}
-            {{ (s // 3600) }}h {{ (s % 3600) // 60 }}m
-          {% endif %}
-
-      - name: "Win Laptop Usage Formatted"
-        state: >
-          {% set m = states('sensor.win_laptop_usage') | int(0) %}
-          {{ (m // 60) }}h {{ m % 60 }}m
+# Example: Notify when time limit reached
+automation kidlock_notify_blocked:
+  - id: kidlock_notify_when_blocked
+    alias: "Kidlock: Notify When Blocked"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.kidlock_myhost_kid_blocked
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Kidlock"
+          message: "Time limit reached - user logged out"

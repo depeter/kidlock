@@ -82,7 +82,24 @@ users:
       weekend: "09:00-21:00"
 ```
 
-## MQTT Topics
+## Home Assistant Integration
+
+Kidlock uses **MQTT auto-discovery** - entities appear automatically in Home Assistant when the agent connects. No manual configuration needed.
+
+### Auto-created Entities (per device)
+
+- `binary_sensor.kidlock_{hostname}_online` - Device connectivity
+
+### Auto-created Entities (per user)
+
+- `binary_sensor.kidlock_{hostname}_{user}_active` - User logged in
+- `binary_sensor.kidlock_{hostname}_{user}_blocked` - User blocked
+- `sensor.kidlock_{hostname}_{user}_usage` - Today's usage (minutes)
+- `sensor.kidlock_{hostname}_{user}_limit` - Daily limit (minutes)
+- `button.kidlock_{hostname}_{user}_lock` - Force logout user
+- `button.kidlock_{hostname}_{user}_unlock` - Allow user to log in
+
+### MQTT Topics
 
 | Topic | Description |
 |-------|-------------|

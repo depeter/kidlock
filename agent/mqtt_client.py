@@ -3,13 +3,16 @@
 import json
 import logging
 import threading
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 import paho.mqtt.client as mqtt
 
-from .config import Config
+from .config import Config, UserConfig
 
 log = logging.getLogger(__name__)
+
+# Home Assistant MQTT Discovery prefix
+HA_DISCOVERY_PREFIX = "homeassistant"
 
 
 class MqttClient:
@@ -107,6 +110,106 @@ class MqttClient:
             payload = json.dumps({"state": state})
             self._client.publish(self.topic_status, payload, qos=1, retain=True)
             log.debug(f"Published status: {state}")
+
+    def publish_ha_discovery(self, users: List[UserConfig]) -> None:
+        """Publish Home Assistant MQTT discovery messages."""
+        if not self._client:
+            return
+
+        hostname = self.config.device.hostname
+        device_info = {
+            "identifiers": [f"kidlock_{hostname}"],
+            "name": f"Kidlock {hostname}",
+            "manufacturer": "Kidlock",
+            "model": "Parental Control Agent",
+        }
+
+        # Device online binary sensor
+        self._publish_discovery("binary_sensor", f"{hostname}_online", {
+            "name": f"{hostname} Online",
+            "unique_id": f"kidlock_{hostname}_online",
+            "device": device_info,
+            "state_topic": self.topic_status,
+            "value_template": "{{ value_json.state }}",
+            "payload_on": "online",
+            "payload_off": "offline",
+            "device_class": "connectivity",
+        })
+
+        # Per-user entities
+        for user in users:
+            username = user.username
+            user_topic = f"{self.config.topic_prefix}/user/{username}"
+            user_id = f"{hostname}_{username}"
+
+            # User active binary sensor
+            self._publish_discovery("binary_sensor", f"{user_id}_active", {
+                "name": f"{username} Active",
+                "unique_id": f"kidlock_{user_id}_active",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ 'ON' if value_json.active else 'OFF' }}",
+                "device_class": "presence",
+            })
+
+            # User blocked binary sensor
+            self._publish_discovery("binary_sensor", f"{user_id}_blocked", {
+                "name": f"{username} Blocked",
+                "unique_id": f"kidlock_{user_id}_blocked",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ 'ON' if value_json.blocked else 'OFF' }}",
+                "icon": "mdi:account-lock",
+            })
+
+            # Usage sensor
+            self._publish_discovery("sensor", f"{user_id}_usage", {
+                "name": f"{username} Usage",
+                "unique_id": f"kidlock_{user_id}_usage",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ value_json.usage_minutes }}",
+                "unit_of_measurement": "min",
+                "icon": "mdi:clock-outline",
+            })
+
+            # Daily limit sensor
+            self._publish_discovery("sensor", f"{user_id}_limit", {
+                "name": f"{username} Daily Limit",
+                "unique_id": f"kidlock_{user_id}_limit",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ value_json.daily_limit }}",
+                "unit_of_measurement": "min",
+                "icon": "mdi:timer-sand",
+            })
+
+            # Lock button
+            self._publish_discovery("button", f"{user_id}_lock", {
+                "name": f"{username} Lock",
+                "unique_id": f"kidlock_{user_id}_lock",
+                "device": device_info,
+                "command_topic": self.topic_command,
+                "payload_press": json.dumps({"action": "lock", "user": username}),
+                "icon": "mdi:lock",
+            })
+
+            # Unlock button
+            self._publish_discovery("button", f"{user_id}_unlock", {
+                "name": f"{username} Unlock",
+                "unique_id": f"kidlock_{user_id}_unlock",
+                "device": device_info,
+                "command_topic": self.topic_command,
+                "payload_press": json.dumps({"action": "unlock", "user": username}),
+                "icon": "mdi:lock-open",
+            })
+
+        log.info(f"Published HA discovery for {len(users)} users")
+
+    def _publish_discovery(self, component: str, object_id: str, config: dict) -> None:
+        """Publish a single HA discovery message."""
+        topic = f"{HA_DISCOVERY_PREFIX}/{component}/kidlock/{object_id}/config"
+        self._client.publish(topic, json.dumps(config), qos=1, retain=True)
 
     def publish_activity(
         self,

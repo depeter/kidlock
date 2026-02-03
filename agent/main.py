@@ -157,6 +157,9 @@ class KidlockAgent:
             log.error("Failed to connect to MQTT broker")
             sys.exit(1)
 
+        # Publish Home Assistant discovery
+        self.mqtt_client.publish_ha_discovery(self.config.users)
+
         self._running = True
         self._last_check = time.time()
         log.info("Kidlock agent running")

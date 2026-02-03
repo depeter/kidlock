@@ -8,7 +8,6 @@ import os
 import subprocess
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional, Set
 
 from .config import ScheduleConfig, UserConfig
 
@@ -25,18 +24,18 @@ class UserState:
     def __init__(self, username: str):
         self.username = username
         self.usage_minutes: int = 0
-        self.last_usage_date: Optional[str] = None
+        self.last_usage_date: str | None = None
         self.blocked: bool = False
         self.block_reason: str = ""
         # New fields for enhanced features
         self.paused: bool = False
-        self.paused_at: Optional[str] = None  # ISO timestamp when paused
+        self.paused_at: str | None = None  # ISO timestamp when paused
         self.bonus_minutes: int = 0  # Extra time for today
-        self.warnings_sent: Set[int] = set()  # Warning thresholds already sent today
+        self.warnings_sent: set[int] = set()  # Warning thresholds already sent today
         # Idle detection (not persisted - runtime only)
         self.is_idle: bool = False
         # Time request (persisted)
-        self.pending_request: Optional[dict] = None  # {id, minutes, reason, created_at}
+        self.pending_request: dict | None = None  # {id, minutes, reason, created_at}
 
     def to_dict(self) -> dict:
         return {
@@ -52,7 +51,7 @@ class UserState:
         }
 
     @classmethod
-    def from_dict(cls, username: str, data: dict) -> "UserState":
+    def from_dict(cls, username: str, data: dict) -> UserState:
         state = cls(username)
         state.usage_minutes = data.get("usage_minutes", 0)
         state.last_usage_date = data.get("last_usage_date")
@@ -70,7 +69,7 @@ class Enforcer:
     """Enforces parental control rules on users."""
 
     def __init__(self):
-        self._user_states: Dict[str, UserState] = {}
+        self._user_states: dict[str, UserState] = {}
         self._load_state()
 
     def _load_state(self) -> None:
@@ -108,7 +107,7 @@ class Enforcer:
             self._user_states[username] = UserState(username)
         return self._user_states[username]
 
-    def get_logged_in_users(self) -> Set[str]:
+    def get_logged_in_users(self) -> set[str]:
         """Get set of currently logged-in users."""
         try:
             result = subprocess.run(
@@ -374,12 +373,12 @@ class Enforcer:
         log.info(f"Created time request for {username}: {minutes} minutes")
         return request
 
-    def get_pending_request(self, username: str) -> Optional[dict]:
+    def get_pending_request(self, username: str) -> dict | None:
         """Get current pending request for a user."""
         state = self.get_user_state(username)
         return state.pending_request
 
-    def approve_request(self, username: str) -> Optional[int]:
+    def approve_request(self, username: str) -> int | None:
         """Approve pending request and add bonus time.
 
         Returns the number of minutes approved, or None if no request.

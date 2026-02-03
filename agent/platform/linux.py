@@ -2,7 +2,6 @@
 
 import logging
 import subprocess
-from typing import Optional
 
 from .base import PlatformBase
 
@@ -114,7 +113,7 @@ class LinuxPlatform(PlatformBase):
             log.error(f"Cancel shutdown failed: {e}")
         return False
 
-    def get_active_window(self) -> Optional[str]:
+    def get_active_window(self) -> str | None:
         """Get active window title using xdotool."""
         try:
             # Get active window ID
@@ -165,7 +164,7 @@ class LinuxPlatform(PlatformBase):
         except (subprocess.SubprocessError, FileNotFoundError) as e:
             log.error(f"Failed to show warning: {e}")
 
-    def _get_user_session_id(self, username: str) -> Optional[str]:
+    def _get_user_session_id(self, username: str) -> str | None:
         """Get the session ID for a user from loginctl."""
         try:
             result = subprocess.run(
@@ -187,7 +186,7 @@ class LinuxPlatform(PlatformBase):
             pass
         return None
 
-    def _get_user_display(self, username: str) -> Optional[str]:
+    def _get_user_display(self, username: str) -> str | None:
         """Get the DISPLAY for a user's session."""
         session_id = self._get_user_session_id(username)
         if not session_id:
@@ -271,7 +270,7 @@ class LinuxPlatform(PlatformBase):
             pass
         return False
 
-    def get_user_active_window(self, username: str) -> Optional[str]:
+    def get_user_active_window(self, username: str) -> str | None:
         """Get active window title for a user's session using xdotool."""
         display = self._get_user_display(username)
         if not display:

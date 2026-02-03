@@ -3,7 +3,6 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -17,11 +16,11 @@ class TamperDetector:
         Args:
             threshold_seconds: Minimum backward clock jump to trigger alarm (default 60s)
         """
-        self._last_wall_time: Optional[datetime] = None
-        self._last_monotonic: Optional[float] = None
+        self._last_wall_time: datetime | None = None
+        self._last_monotonic: float | None = None
         self._threshold = threshold_seconds
 
-    def check(self) -> Tuple[bool, str]:
+    def check(self) -> tuple[bool, str]:
         """Check for clock tampering using monotonic time comparison.
 
         Returns:

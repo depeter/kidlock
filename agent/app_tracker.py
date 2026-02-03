@@ -3,7 +3,6 @@
 import logging
 import re
 from datetime import date, datetime
-from typing import Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -13,13 +12,13 @@ class AppTracker:
 
     def __init__(self):
         # Current window per user
-        self._current_windows: Dict[str, str] = {}
+        self._current_windows: dict[str, str] = {}
         # When current window started
-        self._current_start: Dict[str, datetime] = {}
+        self._current_start: dict[str, datetime] = {}
         # Daily usage per user: {username: {app_name: seconds}}
-        self._daily_usage: Dict[str, Dict[str, int]] = {}
+        self._daily_usage: dict[str, dict[str, int]] = {}
         # Track which date the usage is for
-        self._usage_date: Optional[str] = None
+        self._usage_date: str | None = None
 
     def _reset_if_new_day(self) -> None:
         """Reset daily usage if it's a new day."""
@@ -75,7 +74,7 @@ class AppTracker:
         # Fallback: use the whole title, truncated
         return window_title[:50] if len(window_title) > 50 else window_title
 
-    def update(self, username: str, window_title: Optional[str]) -> None:
+    def update(self, username: str, window_title: str | None) -> None:
         """Track window change and accumulate time for previous window.
 
         Args:
@@ -110,7 +109,7 @@ class AppTracker:
             self._current_windows.pop(username, None)
             self._current_start.pop(username, None)
 
-    def get_top_apps(self, username: str, limit: int = 5) -> List[Tuple[str, int]]:
+    def get_top_apps(self, username: str, limit: int = 5) -> list[tuple[str, int]]:
         """Return top apps by usage time for a user.
 
         Args:
@@ -129,7 +128,7 @@ class AppTracker:
         sorted_apps = sorted(usage.items(), key=lambda x: x[1], reverse=True)
         return sorted_apps[:limit]
 
-    def get_current_app(self, username: str) -> Optional[str]:
+    def get_current_app(self, username: str) -> str | None:
         """Get the currently active app for a user."""
         window = self._current_windows.get(username)
         if window:

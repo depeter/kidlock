@@ -3,7 +3,6 @@
 import ctypes
 import logging
 import subprocess
-from typing import Optional
 
 from .base import PlatformBase
 
@@ -78,7 +77,7 @@ class WindowsPlatform(PlatformBase):
             log.error(f"Cancel shutdown failed: {e}")
         return False
 
-    def get_active_window(self) -> Optional[str]:
+    def get_active_window(self) -> str | None:
         """Get active window title using Win32 API."""
         try:
             hwnd = ctypes.windll.user32.GetForegroundWindow()

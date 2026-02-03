@@ -3,7 +3,6 @@
 import logging
 import os
 import subprocess
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ class Notifier:
     URGENCY_CRITICAL = "critical"
 
     @staticmethod
-    def _get_user_display(username: str) -> Optional[str]:
+    def _get_user_display(username: str) -> str | None:
         """Get the DISPLAY environment variable for a logged-in user."""
         try:
             # Find user's display from their session
@@ -51,7 +50,7 @@ class Notifier:
             return None
 
     @staticmethod
-    def _get_user_dbus(username: str) -> Optional[str]:
+    def _get_user_dbus(username: str) -> str | None:
         """Get the DBUS_SESSION_BUS_ADDRESS for a logged-in user."""
         try:
             # Try to find the dbus address from the user's session

@@ -3,7 +3,8 @@
 import logging
 import threading
 import time
-from typing import TYPE_CHECKING, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .platform.base import PlatformBase
@@ -18,13 +19,13 @@ class ActivityMonitor:
         self,
         platform: "PlatformBase",
         poll_interval: int,
-        on_activity: Callable[[Optional[str], int], None],
+        on_activity: Callable[[str | None, int], None],
     ):
         self.platform = platform
         self.poll_interval = poll_interval
         self.on_activity = on_activity
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         """Start the activity monitor."""

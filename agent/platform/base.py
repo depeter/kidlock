@@ -1,7 +1,6 @@
 """Abstract base class for platform-specific implementations."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class PlatformBase(ABC):
@@ -33,7 +32,7 @@ class PlatformBase(ABC):
         pass
 
     @abstractmethod
-    def get_active_window(self) -> Optional[str]:
+    def get_active_window(self) -> str | None:
         """Get the title of the currently active window."""
         pass
 
@@ -75,7 +74,7 @@ class PlatformBase(ABC):
         """
         return False
 
-    def get_user_active_window(self, username: str) -> Optional[str]:
+    def get_user_active_window(self, username: str) -> str | None:
         """Get the active window title for a specific user's session.
 
         Args:

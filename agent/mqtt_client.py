@@ -3,8 +3,8 @@
 import json
 import logging
 import threading
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, List, Optional, Tuple
 
 import paho.mqtt.client as mqtt
 
@@ -23,12 +23,12 @@ class MqttClient:
         self,
         config: Config,
         on_command: Callable[[dict], None],
-        on_settings: Optional[Callable[[dict], None]] = None,
+        on_settings: Callable[[dict], None] | None = None,
     ):
         self.config = config
         self.on_command = on_command
         self.on_settings = on_settings
-        self._client: Optional[mqtt.Client] = None
+        self._client: mqtt.Client | None = None
         self._connected = threading.Event()
 
     @property
@@ -112,7 +112,7 @@ class MqttClient:
             self._client.publish(self.topic_status, payload, qos=1, retain=True)
             log.debug(f"Published status: {state}")
 
-    def publish_ha_discovery(self, users: List[UserConfig]) -> None:
+    def publish_ha_discovery(self, users: list[UserConfig]) -> None:
         """Publish Home Assistant MQTT discovery messages."""
         if not self._client:
             return
@@ -371,7 +371,7 @@ class MqttClient:
 
     def publish_activity(
         self,
-        active_window: Optional[str],
+        active_window: str | None,
         idle_seconds: int,
         usage_minutes: int = 0,
         blocking_enabled: bool = False,
@@ -401,9 +401,9 @@ class MqttClient:
         paused: bool = False,
         bonus_minutes: int = 0,
         is_idle: bool = False,
-        top_apps: Optional[List[Tuple[str, int]]] = None,
-        current_app: Optional[str] = None,
-        pending_request: Optional[dict] = None,
+        top_apps: list[tuple[str, int]] | None = None,
+        current_app: str | None = None,
+        pending_request: dict | None = None,
     ) -> None:
         """Publish per-user activity data."""
         if self._client:
@@ -440,7 +440,7 @@ class MqttClient:
         self,
         event_type: str,
         username: str,
-        data: Optional[dict] = None,
+        data: dict | None = None,
     ) -> None:
         """Publish an event for Home Assistant automations.
 

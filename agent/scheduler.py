@@ -5,9 +5,10 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .config import LimitsConfig
@@ -30,9 +31,9 @@ class Scheduler:
         self.on_limit_reached = on_limit_reached
 
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._usage_minutes = 0
-        self._last_reset_date: Optional[str] = None
+        self._last_reset_date: str | None = None
         self._state_file = self._get_state_file()
         self._locked_for_schedule = False
 
@@ -168,7 +169,7 @@ class Scheduler:
             log.error(f"Failed to parse schedule: {e}")
             return True  # Allow if schedule is invalid
 
-    def _parse_time(self, time_str: str) -> Tuple[int, int]:
+    def _parse_time(self, time_str: str) -> tuple[int, int]:
         """Parse time string like '15:00' to (hour, minute)."""
         parts = time_str.strip().split(":")
         return int(parts[0]), int(parts[1])

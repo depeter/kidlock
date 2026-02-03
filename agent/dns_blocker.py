@@ -2,7 +2,6 @@
 
 import logging
 import subprocess
-from typing import List, Optional
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class DnsBlocker:
     whitelisted domains to resolve via upstream DNS.
     """
 
-    def __init__(self, enabled: bool = False, whitelist: Optional[List[str]] = None):
+    def __init__(self, enabled: bool = False, whitelist: list[str] | None = None):
         self._enabled = enabled
         self._whitelist = whitelist or []
         log.info(f"DnsBlocker initialized: enabled={enabled}, whitelist={self._whitelist}")
@@ -40,7 +39,7 @@ class DnsBlocker:
         return self._enabled
 
     @property
-    def whitelist(self) -> List[str]:
+    def whitelist(self) -> list[str]:
         """Current whitelist of allowed domains."""
         return self._whitelist
 
@@ -63,7 +62,7 @@ class DnsBlocker:
             self._clear_config()
             self._restart_dnsmasq()
 
-    def update_whitelist(self, domains: List[str]) -> None:
+    def update_whitelist(self, domains: list[str]) -> None:
         """Update the whitelist of allowed domains.
 
         Args:
@@ -82,7 +81,7 @@ class DnsBlocker:
             self._write_config()
             self._restart_dnsmasq()
 
-    def _get_effective_whitelist(self) -> List[str]:
+    def _get_effective_whitelist(self) -> list[str]:
         """Get whitelist including default entries."""
         combined = set(DEFAULT_WHITELIST)
         combined.update(self._whitelist)

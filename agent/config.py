@@ -3,7 +3,6 @@
 import socket
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 
@@ -12,8 +11,8 @@ import yaml
 class MqttConfig:
     broker: str = "homeassistant.local"
     port: int = 1883
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
 
 
 @dataclass
@@ -33,7 +32,7 @@ class UserConfig:
     username: str
     daily_minutes: int = 0  # 0 = unlimited
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
-    warnings: List[int] = field(default_factory=lambda: [10, 5, 1])  # Minutes before limit to warn
+    warnings: list[int] = field(default_factory=lambda: [10, 5, 1])  # Minutes before limit to warn
 
 
 @dataclass
@@ -49,7 +48,7 @@ class ActivityConfig:
 class Config:
     mqtt: MqttConfig = field(default_factory=MqttConfig)
     device: DeviceConfig = field(default_factory=DeviceConfig)
-    users: List[UserConfig] = field(default_factory=list)
+    users: list[UserConfig] = field(default_factory=list)
     activity: ActivityConfig = field(default_factory=ActivityConfig)
 
     @classmethod
@@ -118,7 +117,7 @@ class Config:
 
         return config
 
-    def get_user(self, username: str) -> Optional[UserConfig]:
+    def get_user(self, username: str) -> UserConfig | None:
         """Get config for a specific user."""
         for user in self.users:
             if user.username == username:

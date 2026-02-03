@@ -1,0 +1,45 @@
+#!/bin/bash
+# Post-remove script for kidlock
+set -e
+
+PAM_FILES="/etc/pam.d/common-auth /etc/pam.d/login /etc/pam.d/gdm-password /etc/pam.d/lightdm /etc/pam.d/sddm"
+
+# Remove PAM line from all PAM files
+for pam_file in $PAM_FILES; do
+    if [ -f "$pam_file" ]; then
+        sed -i '/kidlock-pam-check/d' "$pam_file" 2>/dev/null || true
+    fi
+done
+
+# Remove PAM check script
+rm -f /usr/local/bin/kidlock-pam-check
+rm -f /usr/local/bin/kidlock-tray
+
+# Remove NetworkManager config
+rm -f /etc/NetworkManager/dnsmasq.d/kidlock.conf
+rm -f /etc/NetworkManager/conf.d/kidlock-dns.conf
+
+# Restart NetworkManager to restore default DNS handling
+if systemctl is-active --quiet NetworkManager; then
+    systemctl restart NetworkManager || true
+fi
+
+# Remove systemd service file
+rm -f /etc/systemd/system/kidlock.service
+systemctl daemon-reload
+
+# Remove tray autostart files for all users
+for autostart_file in /home/*/.config/autostart/kidlock-tray.desktop; do
+    if [ -f "$autostart_file" ]; then
+        rm -f "$autostart_file"
+    fi
+done
+
+# On purge, remove config and state directories
+if [ "$1" = "purge" ]; then
+    rm -rf /etc/kidlock
+    rm -rf /var/lib/kidlock
+    rm -rf /opt/kidlock
+fi
+
+exit 0

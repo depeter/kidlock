@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kidlock"
+version = "1.0.0"
+description = "Linux parental control agent with Home Assistant integration via MQTT"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "PM Consulting"}
+]
+keywords = ["parental-control", "screen-time", "home-assistant", "mqtt", "linux"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: No Input/Output (Daemon)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Home Automation",
+    "Topic :: System :: Systems Administration",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "paho-mqtt>=1.6.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+tray = [
+    "pystray>=0.19.0",
+    "pillow>=9.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "types-PyYAML>=6.0.0",
+]
+
+[project.scripts]
+kidlock = "agent.main:main"
+kidlock-pam-check = "agent.pam_check:main"
+
+[project.urls]
+Homepage = "https://github.com/pm-consulting/kidlock"
+Repository = "https://github.com/pm-consulting/kidlock"
+Issues = "https://github.com/pm-consulting/kidlock/issues"
+
+[tool.setuptools.packages.find]
+include = ["agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent"]
+
+[tool.coverage.run]
+source = ["agent"]
+omit = ["tests/*"]

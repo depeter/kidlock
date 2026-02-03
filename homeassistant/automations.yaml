@@ -1,0 +1,301 @@
+# Kidlock Notification Automations for Home Assistant
+#
+# These automations send push notifications to the Home Assistant mobile app
+# when important events occur.
+#
+# SETUP INSTRUCTIONS:
+# 1. Install the Home Assistant Companion app on your phone
+# 2. Replace {notify_service} with your notification service
+#    (e.g., notify.mobile_app_parents_phone)
+# 3. Replace {hostname} and {username} with your device/user names
+# 4. Copy these automations to your automations.yaml or add via UI
+#
+# TIP: To find your notification service name:
+#   - Go to Developer Tools > Services
+#   - Look for services starting with "notify."
+
+# ============================================================
+# LOGIN NOTIFICATIONS
+# Notify when a child logs in
+# ============================================================
+
+- id: kidlock_login_notification
+  alias: "Kidlock: Child Logged In"
+  description: "Notify parents when a child logs into their computer"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.kidlock_{hostname}_{username}_active
+      from: "off"
+      to: "on"
+  condition:
+    - condition: state
+      entity_id: binary_sensor.kidlock_{hostname}_online
+      state: "on"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Screen Time Started"
+        message: "{username} just logged in"
+        data:
+          tag: "kidlock-{hostname}-{username}-login"
+          # Android-specific
+          channel: "kidlock"
+          importance: default
+          # iOS-specific
+          push:
+            sound: default
+            badge: 0
+
+# ============================================================
+# TIME WARNING NOTIFICATIONS
+# Notify when a child has limited time remaining
+# ============================================================
+
+- id: kidlock_time_warning_15min
+  alias: "Kidlock: 15 Minutes Remaining"
+  description: "Notify parents when child has 15 minutes of screen time left"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.kidlock_{hostname}_{username}_time_remaining
+      below: 16
+      above: 14
+  condition:
+    - condition: state
+      entity_id: binary_sensor.kidlock_{hostname}_{username}_active
+      state: "on"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Screen Time Warning"
+        message: "{username} has 15 minutes left on {hostname}"
+        data:
+          tag: "kidlock-{hostname}-{username}-warning"
+          # Android
+          channel: "kidlock"
+          importance: high
+          # iOS
+          push:
+            sound: default
+
+- id: kidlock_time_warning_5min
+  alias: "Kidlock: 5 Minutes Remaining"
+  description: "Notify parents when child has 5 minutes of screen time left"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.kidlock_{hostname}_{username}_time_remaining
+      below: 6
+      above: 4
+  condition:
+    - condition: state
+      entity_id: binary_sensor.kidlock_{hostname}_{username}_active
+      state: "on"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Screen Time Almost Up"
+        message: "{username} has 5 minutes left!"
+        data:
+          tag: "kidlock-{hostname}-{username}-warning"
+          # Android
+          channel: "kidlock"
+          importance: high
+          color: "#FFA500"
+          # iOS
+          push:
+            sound: default
+
+# ============================================================
+# TIME EXHAUSTED NOTIFICATIONS
+# Notify when screen time is up
+# ============================================================
+
+- id: kidlock_time_exhausted
+  alias: "Kidlock: Screen Time Exhausted"
+  description: "Notify parents when child's screen time is up"
+  trigger:
+    - platform: state
+      entity_id: sensor.kidlock_{hostname}_{username}_status
+      to: "Blocked"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Screen Time Up"
+        message: "{username}'s screen time is up for today"
+        data:
+          tag: "kidlock-{hostname}-{username}-exhausted"
+          # Android
+          channel: "kidlock"
+          importance: high
+          color: "#FF0000"
+          # iOS
+          push:
+            sound: default
+
+# ============================================================
+# DEVICE OFFLINE NOTIFICATIONS
+# Notify when a device goes offline (optional - can be noisy)
+# ============================================================
+
+- id: kidlock_device_offline
+  alias: "Kidlock: Device Offline"
+  description: "Notify when a kidlock device goes offline"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.kidlock_{hostname}_online
+      to: "off"
+      for:
+        minutes: 5  # Wait 5 min to avoid transient disconnects
+  action:
+    - service: {notify_service}
+      data:
+        title: "Device Offline"
+        message: "{hostname} has gone offline"
+        data:
+          tag: "kidlock-{hostname}-offline"
+          # Android
+          channel: "kidlock"
+          importance: low
+          # iOS
+          push:
+            sound: none
+
+# ============================================================
+# PAUSE/RESUME NOTIFICATIONS
+# Notify when timer is paused or resumed
+# ============================================================
+
+- id: kidlock_timer_paused
+  alias: "Kidlock: Timer Paused"
+  description: "Notify when screen time timer is paused"
+  trigger:
+    - platform: state
+      entity_id: switch.kidlock_{hostname}_{username}_paused
+      to: "on"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Timer Paused"
+        message: "{username}'s screen time timer is now paused"
+        data:
+          tag: "kidlock-{hostname}-{username}-pause"
+          # Android
+          channel: "kidlock"
+          importance: default
+          # iOS
+          push:
+            sound: none
+
+- id: kidlock_timer_resumed
+  alias: "Kidlock: Timer Resumed"
+  description: "Notify when screen time timer is resumed"
+  trigger:
+    - platform: state
+      entity_id: switch.kidlock_{hostname}_{username}_paused
+      to: "off"
+  condition:
+    - condition: state
+      entity_id: binary_sensor.kidlock_{hostname}_{username}_active
+      state: "on"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Timer Resumed"
+        message: "{username}'s screen time timer is now running"
+        data:
+          tag: "kidlock-{hostname}-{username}-pause"
+          # Android
+          channel: "kidlock"
+          importance: default
+          # iOS
+          push:
+            sound: none
+
+# ============================================================
+# ACTIONABLE NOTIFICATIONS (Advanced)
+# Notifications with action buttons for quick response
+# ============================================================
+
+- id: kidlock_time_warning_actionable
+  alias: "Kidlock: Time Warning with Actions"
+  description: "Send actionable notification when time is running low"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.kidlock_{hostname}_{username}_time_remaining
+      below: 11
+      above: 9
+  condition:
+    - condition: state
+      entity_id: binary_sensor.kidlock_{hostname}_{username}_active
+      state: "on"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Screen Time Warning"
+        message: "{username} has 10 minutes left. Add more time?"
+        data:
+          tag: "kidlock-{hostname}-{username}-action"
+          actions:
+            - action: "KIDLOCK_ADD_15"
+              title: "+15 min"
+            - action: "KIDLOCK_ADD_30"
+              title: "+30 min"
+            - action: "KIDLOCK_IGNORE"
+              title: "Ignore"
+
+# Handle the actionable notification responses
+- id: kidlock_action_add_15
+  alias: "Kidlock: Handle Add 15 Minutes Action"
+  trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: "KIDLOCK_ADD_15"
+  action:
+    - service: button.press
+      target:
+        entity_id: button.kidlock_{hostname}_{username}_add_15min
+    - service: {notify_service}
+      data:
+        message: "Added 15 minutes for {username}"
+
+- id: kidlock_action_add_30
+  alias: "Kidlock: Handle Add 30 Minutes Action"
+  trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: "KIDLOCK_ADD_30"
+  action:
+    - service: button.press
+      target:
+        entity_id: button.kidlock_{hostname}_{username}_add_30min
+    - service: {notify_service}
+      data:
+        message: "Added 30 minutes for {username}"
+
+# ============================================================
+# DAILY SUMMARY (Optional)
+# Send a daily summary of screen time usage
+# ============================================================
+
+- id: kidlock_daily_summary
+  alias: "Kidlock: Daily Usage Summary"
+  description: "Send daily screen time summary at 9 PM"
+  trigger:
+    - platform: time
+      at: "21:00:00"
+  action:
+    - service: {notify_service}
+      data:
+        title: "Daily Screen Time Summary"
+        message: >-
+          Today's screen time:
+          {username}: {{ states('sensor.kidlock_{hostname}_{username}_usage') }} minutes
+        data:
+          tag: "kidlock-daily-summary"
+          # Android
+          channel: "kidlock"
+          importance: low
+          # iOS
+          push:
+            sound: none

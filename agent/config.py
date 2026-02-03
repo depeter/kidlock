@@ -33,11 +33,16 @@ class UserConfig:
     username: str
     daily_minutes: int = 0  # 0 = unlimited
     schedule: ScheduleConfig = field(default_factory=ScheduleConfig)
+    warnings: List[int] = field(default_factory=lambda: [10, 5, 1])  # Minutes before limit to warn
 
 
 @dataclass
 class ActivityConfig:
     poll_interval: int = 10  # seconds
+    pause_auto_resume: int = 30  # Minutes before auto-resuming a paused timer
+    tamper_detection: bool = True  # Detect system clock manipulation
+    idle_threshold_minutes: int = 5  # Don't count time when idle > this (0 = disabled)
+    track_apps: bool = True  # Track active application usage
 
 
 @dataclass
@@ -86,6 +91,7 @@ class Config:
                         weekday=schedule_data.get("weekday", "00:00-23:59"),
                         weekend=schedule_data.get("weekend", "00:00-23:59"),
                     ),
+                    warnings=user_data.get("warnings", [10, 5, 1]),
                 )
                 config.users.append(user)
 
@@ -95,7 +101,19 @@ class Config:
             config.activity = ActivityConfig(
                 poll_interval=activity_data.get(
                     "poll_interval", config.activity.poll_interval
-                )
+                ),
+                pause_auto_resume=activity_data.get(
+                    "pause_auto_resume", config.activity.pause_auto_resume
+                ),
+                tamper_detection=activity_data.get(
+                    "tamper_detection", config.activity.tamper_detection
+                ),
+                idle_threshold_minutes=activity_data.get(
+                    "idle_threshold_minutes", config.activity.idle_threshold_minutes
+                ),
+                track_apps=activity_data.get(
+                    "track_apps", config.activity.track_apps
+                ),
             )
 
         return config

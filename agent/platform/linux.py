@@ -164,3 +164,149 @@ class LinuxPlatform(PlatformBase):
             log.info(f"Warning shown: {title}")
         except (subprocess.SubprocessError, FileNotFoundError) as e:
             log.error(f"Failed to show warning: {e}")
+
+    def _get_user_session_id(self, username: str) -> Optional[str]:
+        """Get the session ID for a user from loginctl."""
+        try:
+            result = subprocess.run(
+                ["loginctl", "list-sessions", "--no-legend"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) >= 3:
+                    session_id = parts[0]
+                    user = parts[2]
+                    if user == username:
+                        return session_id
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+        return None
+
+    def _get_user_display(self, username: str) -> Optional[str]:
+        """Get the DISPLAY for a user's session."""
+        session_id = self._get_user_session_id(username)
+        if not session_id:
+            return None
+
+        try:
+            result = subprocess.run(
+                ["loginctl", "show-session", session_id, "-p", "Display"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            line = result.stdout.strip()
+            if line.startswith("Display=") and len(line) > 8:
+                return line.split("=", 1)[1]
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+        return None
+
+    def get_user_idle_seconds(self, username: str) -> int:
+        """Get idle time for a user's X session using xprintidle."""
+        display = self._get_user_display(username)
+        if not display:
+            return 0
+
+        try:
+            # Get user's uid for XAUTHORITY path
+            uid_result = subprocess.run(
+                ["id", "-u", username],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            uid = uid_result.stdout.strip()
+
+            # Run xprintidle as the user with their DISPLAY
+            env = {
+                "DISPLAY": display,
+                "XAUTHORITY": f"/run/user/{uid}/gdm/Xauthority",
+            }
+            # Try common Xauthority locations
+            xauth_paths = [
+                f"/run/user/{uid}/gdm/Xauthority",
+                f"/home/{username}/.Xauthority",
+                f"/run/user/{uid}/.Xauthority",
+            ]
+            for xauth in xauth_paths:
+                env["XAUTHORITY"] = xauth
+                result = subprocess.run(
+                    ["sudo", "-u", username, "xprintidle"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    env=env,
+                )
+                if result.returncode == 0:
+                    # xprintidle returns milliseconds
+                    ms = int(result.stdout.strip())
+                    return ms // 1000
+        except (subprocess.SubprocessError, FileNotFoundError, ValueError):
+            pass
+        return 0
+
+    def is_session_locked(self, username: str) -> bool:
+        """Check if user's session is locked via loginctl."""
+        session_id = self._get_user_session_id(username)
+        if not session_id:
+            return False
+
+        try:
+            result = subprocess.run(
+                ["loginctl", "show-session", session_id, "-p", "LockedHint"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            line = result.stdout.strip()
+            if line == "LockedHint=yes":
+                return True
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+        return False
+
+    def get_user_active_window(self, username: str) -> Optional[str]:
+        """Get active window title for a user's session using xdotool."""
+        display = self._get_user_display(username)
+        if not display:
+            return None
+
+        try:
+            # Get user's uid for XAUTHORITY path
+            uid_result = subprocess.run(
+                ["id", "-u", username],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            uid = uid_result.stdout.strip()
+
+            # Try common Xauthority locations
+            xauth_paths = [
+                f"/run/user/{uid}/gdm/Xauthority",
+                f"/home/{username}/.Xauthority",
+                f"/run/user/{uid}/.Xauthority",
+            ]
+            for xauth in xauth_paths:
+                env = {
+                    "DISPLAY": display,
+                    "XAUTHORITY": xauth,
+                }
+                result = subprocess.run(
+                    ["sudo", "-u", username, "xdotool", "getactivewindow", "getwindowname"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    env=env,
+                )
+                if result.returncode == 0:
+                    return result.stdout.strip() or None
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+        return None

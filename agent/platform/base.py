@@ -52,3 +52,36 @@ class PlatformBase(ABC):
     def name(self) -> str:
         """Return the platform name."""
         pass
+
+    def get_user_idle_seconds(self, username: str) -> int:
+        """Get idle time for a specific user's session.
+
+        Args:
+            username: The user to check
+
+        Returns:
+            Idle time in seconds, or 0 if unable to determine
+        """
+        return 0
+
+    def is_session_locked(self, username: str) -> bool:
+        """Check if a user's session is locked.
+
+        Args:
+            username: The user to check
+
+        Returns:
+            True if session is locked, False otherwise
+        """
+        return False
+
+    def get_user_active_window(self, username: str) -> Optional[str]:
+        """Get the active window title for a specific user's session.
+
+        Args:
+            username: The user to check
+
+        Returns:
+            Window title or None if unable to determine
+        """
+        return None

@@ -10,11 +10,23 @@ mqtt:
 # User(s) to control - REQUIRED
 # The service runs as root and enforces limits on these users
 users:
-  - username: "kid"
-    daily_minutes: 180        # 3 hours max per day (0 = unlimited)
+  - username: "emma"
+    daily_minutes: 120        # 2 hours max per day (0 = unlimited)
     schedule:
-      weekday: "15:00-20:00"
-      weekend: "09:00-21:00"
+      weekday: "15:00-19:00"  # 3pm-7pm on weekdays
+      weekend: "09:00-20:00"  # 9am-8pm on weekends
+    warnings: [10, 5, 1]      # Warn at 10, 5, and 1 minute(s) remaining
+
+  - username: "lucas"
+    daily_minutes: 90         # 1.5 hours max per day
+    schedule:
+      weekday: "15:00-18:30"
+      weekend: "09:00-19:00"
+    warnings: [10, 5, 1]
 
 activity:
-  poll_interval: 10  # Seconds between activity updates
+  poll_interval: 10           # Seconds between checks
+  pause_auto_resume: 30       # Auto-resume paused timer after 30 minutes
+  idle_threshold_minutes: 5   # Don't count time when idle > this (0 = disabled)
+  track_apps: true            # Track active application usage
+  tamper_detection: true      # Detect system clock manipulation

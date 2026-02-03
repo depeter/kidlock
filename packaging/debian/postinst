@@ -1,0 +1,130 @@
+#!/bin/bash
+# Post-install script for kidlock
+set -e
+
+INSTALL_DIR="/opt/kidlock"
+CONFIG_DIR="/etc/kidlock"
+SERVICE_NAME="kidlock"
+
+# Copy example config if no config exists
+if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
+    if [ -f "$INSTALL_DIR/config.example.yaml" ]; then
+        cp "$INSTALL_DIR/config.example.yaml" "$CONFIG_DIR/config.yaml"
+        chmod 600 "$CONFIG_DIR/config.yaml"
+    fi
+fi
+
+# Ensure state directory permissions
+chmod 755 /var/lib/kidlock
+if [ -f /var/lib/kidlock/state.json ]; then
+    chmod 644 /var/lib/kidlock/state.json
+fi
+
+# Install PAM check script
+if [ -f "$INSTALL_DIR/pam-check.py" ]; then
+    cp "$INSTALL_DIR/pam-check.py" /usr/local/bin/kidlock-pam-check
+    chmod 755 /usr/local/bin/kidlock-pam-check
+fi
+
+# Create tray launcher script
+cat > /usr/local/bin/kidlock-tray << 'TRAY_EOF'
+#!/bin/bash
+exec /opt/kidlock/.venv/bin/python /opt/kidlock/tray/kidlock-tray.py "$@"
+TRAY_EOF
+chmod +x /usr/local/bin/kidlock-tray
+
+# Setup PAM integration
+PAM_LINE="auth    required    pam_exec.so    quiet /usr/local/bin/kidlock-pam-check"
+
+# Add to common-auth if not already there (Debian/Ubuntu)
+if [ -f /etc/pam.d/common-auth ]; then
+    if ! grep -q "kidlock-pam-check" /etc/pam.d/common-auth; then
+        sed -i "0,/^auth/s/^auth.*$/&\n$PAM_LINE/" /etc/pam.d/common-auth
+    fi
+fi
+
+# Also add to login and display managers
+for pam_file in /etc/pam.d/login /etc/pam.d/gdm-password /etc/pam.d/lightdm /etc/pam.d/sddm; do
+    if [ -f "$pam_file" ]; then
+        if ! grep -q "kidlock-pam-check" "$pam_file"; then
+            sed -i "0,/^auth/s/^auth.*$/&\n$PAM_LINE/" "$pam_file"
+        fi
+    fi
+done
+
+# Configure NetworkManager dnsmasq plugin
+cat > /etc/NetworkManager/dnsmasq.d/kidlock.conf << 'EOF'
+# Kidlock DNS blocking disabled
+EOF
+
+cat > /etc/NetworkManager/conf.d/kidlock-dns.conf << 'EOF'
+[main]
+dns=dnsmasq
+EOF
+
+# Setup tray autostart for controlled users
+setup_tray_for_user() {
+    local username="$1"
+    local user_home=$(getent passwd "$username" | cut -d: -f6)
+
+    if [ -z "$user_home" ] || [ ! -d "$user_home" ]; then
+        return
+    fi
+
+    local autostart_dir="$user_home/.config/autostart"
+    mkdir -p "$autostart_dir"
+
+    cat > "$autostart_dir/kidlock-tray.desktop" << 'DESKTOP_EOF'
+[Desktop Entry]
+Type=Application
+Name=Kidlock Time Indicator
+Comment=Shows remaining screen time
+Exec=/usr/local/bin/kidlock-tray
+Icon=clock
+Terminal=false
+Categories=Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5
+DESKTOP_EOF
+
+    chown "$username:" "$autostart_dir/kidlock-tray.desktop"
+}
+
+# Parse config and setup tray for each controlled user
+if [ -f "$CONFIG_DIR/config.yaml" ]; then
+    CONTROLLED_USERS=$(grep -E "^\s*-?\s*username:" "$CONFIG_DIR/config.yaml" 2>/dev/null | sed 's/.*username:\s*["'"'"']\?\([^"'"'"']*\)["'"'"']\?.*/\1/' || true)
+    for user in $CONTROLLED_USERS; do
+        if id "$user" &>/dev/null; then
+            setup_tray_for_user "$user"
+        fi
+    done
+fi
+
+# Reload systemd and enable service
+systemctl daemon-reload
+
+# Restart NetworkManager to pick up dnsmasq config
+if systemctl is-active --quiet NetworkManager; then
+    systemctl restart NetworkManager || true
+fi
+
+# Enable and start service
+systemctl enable "$SERVICE_NAME" || true
+systemctl start "$SERVICE_NAME" || true
+
+echo ""
+echo "=== Kidlock Installation Complete ==="
+echo ""
+echo "IMPORTANT: Edit the config file to set up MQTT and users:"
+echo "  sudo nano $CONFIG_DIR/config.yaml"
+echo ""
+echo "After editing config, restart the service:"
+echo "  sudo systemctl restart $SERVICE_NAME"
+echo ""
+echo "Check status:"
+echo "  systemctl status $SERVICE_NAME"
+echo "  journalctl -u $SERVICE_NAME -f"
+echo ""
+
+exit 0

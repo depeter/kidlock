@@ -1,0 +1,22 @@
+Package: kidlock
+Version: 1.0.0
+Architecture: all
+Maintainer: Peter <peter@pm-consulting.be>
+Depends: python3 (>= 3.8), python3-venv, dnsmasq, libnotify-bin, network-manager
+Recommends: python3-gi, gir1.2-ayatanaappindicator3-0.1
+Section: admin
+Priority: optional
+Homepage: https://github.com/peter/kidlock
+Description: Linux parental control with Home Assistant integration
+ Enforces screen time limits via PAM login blocking, session
+ termination, and DNS filtering. Integrates with Home Assistant
+ via MQTT for remote control and monitoring.
+ .
+ Features:
+  - Block login for controlled users outside allowed hours
+  - Force logout when time limit is reached
+  - Track usage time per user
+  - Desktop warnings before time runs out
+  - System tray indicator showing remaining time
+  - Add bonus time via Home Assistant
+  - Pause timer via Home Assistant

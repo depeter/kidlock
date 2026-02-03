@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Kidlock Time Indicator
+Comment=Shows remaining screen time
+Exec=/opt/kidlock/tray/kidlock-tray.py
+Icon=clock
+Terminal=false
+Categories=Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5

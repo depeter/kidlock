@@ -1,0 +1,12 @@
+#!/bin/bash
+# Pre-install script for kidlock
+set -e
+
+# Create directories
+mkdir -p /opt/kidlock
+mkdir -p /etc/kidlock
+mkdir -p /var/lib/kidlock
+mkdir -p /etc/NetworkManager/dnsmasq.d
+mkdir -p /etc/NetworkManager/conf.d
+
+exit 0

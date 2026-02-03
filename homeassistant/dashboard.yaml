@@ -1,112 +1,248 @@
-# Kidlock Lovelace Dashboard Example
-# Add as a new dashboard or view in your HA dashboard
+# Kidlock Family Dashboard
+# Copy this to your Home Assistant Lovelace dashboard configuration
+# Replace {hostname} and {username} with your actual device hostname and usernames
+#
+# This dashboard provides:
+# - Per-child cards with time remaining and progress bars
+# - Quick action buttons (+15min, +30min, Lock, Unlock)
+# - Traffic light status indicators
+# - Mobile-friendly layout
 
-title: Kidlock
+title: Screen Time
 views:
-  - title: Screen Time
-    path: kidlock
+  - title: Kids Screen Time
+    path: screen-time
     icon: mdi:laptop
+    badges: []
     cards:
-      # Schedule Settings Card
+      # ============================================================
+      # CHILD CARD TEMPLATE
+      # Duplicate this section for each child, replacing:
+      #   - {hostname} with your device hostname (e.g., laptop-emma)
+      #   - {username} with the child's username (e.g., emma)
+      #   - {child_name} with display name (e.g., Emma)
+      # ============================================================
+
+      # --- Emma's Screen Time Card ---
+      - type: vertical-stack
+        cards:
+          # Header with status
+          - type: custom:mushroom-template-card
+            primary: "Emma's Screen Time"
+            secondary: >-
+              {{ states('sensor.kidlock_{hostname}_{username}_status') }}
+            icon: mdi:account-child
+            icon_color: >-
+              {% set status = states('sensor.kidlock_{hostname}_{username}_status') %}
+              {% if status == 'Playing' %}green
+              {% elif status == 'Paused' %}blue
+              {% elif status == 'Blocked' %}red
+              {% else %}grey{% endif %}
+            badge_icon: >-
+              {% if is_state('binary_sensor.kidlock_{hostname}_online', 'off') %}
+              mdi:wifi-off
+              {% elif is_state('switch.kidlock_{hostname}_{username}_paused', 'on') %}
+              mdi:pause
+              {% endif %}
+            tap_action:
+              action: more-info
+              entity: sensor.kidlock_{hostname}_{username}_usage
+
+          # Time remaining gauge
+          - type: gauge
+            name: Time Remaining
+            entity: sensor.kidlock_{hostname}_{username}_time_remaining
+            min: 0
+            max: 180
+            needle: true
+            severity:
+              green: 30
+              yellow: 10
+              red: 0
+            unit: min
+
+          # Progress bar showing usage
+          - type: custom:bar-card
+            entity: sensor.kidlock_{hostname}_{username}_usage
+            name: Used Today
+            max: "{{ states('sensor.kidlock_{hostname}_{username}_limit') | int }}"
+            min: 0
+            positions:
+              icon: off
+              indicator: inside
+              name: outside
+              value: inside
+            severity:
+              - color: Green
+                from: 0
+                to: 60
+              - color: Yellow
+                from: 60
+                to: 90
+              - color: Red
+                from: 90
+                to: 100
+
+          # Quick action buttons
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: "+15 min"
+                icon: mdi:clock-plus
+                tap_action:
+                  action: call-service
+                  service: button.press
+                  target:
+                    entity_id: button.kidlock_{hostname}_{username}_add_15min
+                icon_height: 30px
+
+              - type: button
+                name: "+30 min"
+                icon: mdi:clock-plus-outline
+                tap_action:
+                  action: call-service
+                  service: button.press
+                  target:
+                    entity_id: button.kidlock_{hostname}_{username}_add_30min
+                icon_height: 30px
+
+              - type: button
+                name: "Pause"
+                icon: mdi:pause-circle
+                tap_action:
+                  action: call-service
+                  service: switch.toggle
+                  target:
+                    entity_id: switch.kidlock_{hostname}_{username}_paused
+                icon_height: 30px
+
+          - type: horizontal-stack
+            cards:
+              - type: button
+                name: "Lock Now"
+                icon: mdi:lock
+                tap_action:
+                  action: call-service
+                  service: button.press
+                  target:
+                    entity_id: button.kidlock_{hostname}_{username}_lock
+                icon_height: 30px
+
+              - type: button
+                name: "Unlock"
+                icon: mdi:lock-open
+                tap_action:
+                  action: call-service
+                  service: button.press
+                  target:
+                    entity_id: button.kidlock_{hostname}_{username}_unlock
+                icon_height: 30px
+
+      # ============================================================
+      # SIMPLER ALTERNATIVE (no custom cards required)
+      # Use this if you don't have mushroom-cards or bar-card installed
+      # ============================================================
+
+      # --- Simple Child Card (No Custom Cards) ---
       - type: entities
-        title: Schedule Settings
+        title: "{child_name} - {hostname}"
         show_header_toggle: false
         entities:
-          - entity: input_number.kidlock_daily_limit
+          # Device status
+          - entity: binary_sensor.kidlock_{hostname}_online
+            name: Device Online
+
+          # User status
+          - entity: sensor.kidlock_{hostname}_{username}_status
+            name: Status
+
+          # Time info
+          - type: section
+            label: Time
+
+          - entity: sensor.kidlock_{hostname}_{username}_time_remaining
+            name: Time Remaining
+
+          - entity: sensor.kidlock_{hostname}_{username}_usage
+            name: Used Today
+
+          - entity: sensor.kidlock_{hostname}_{username}_limit
             name: Daily Limit
+
+          # Controls
           - type: section
-            label: Weekday Hours
-          - entity: input_datetime.kidlock_weekday_start
-            name: Start
-          - entity: input_datetime.kidlock_weekday_end
-            name: End
-          - type: section
-            label: Weekend Hours
-          - entity: input_datetime.kidlock_weekend_start
-            name: Start
-          - entity: input_datetime.kidlock_weekend_end
-            name: End
+            label: Controls
 
-      # Mint Laptop Card
-      - type: entities
-        title: Mint Laptop
-        show_header_toggle: false
-        entities:
-          - entity: binary_sensor.mint_laptop_online
-            name: Status
-          - entity: sensor.mint_laptop_usage_formatted
-            name: Usage Today
-          - entity: sensor.mint_laptop_idle_formatted
-            name: Idle Time
-          - entity: sensor.mint_laptop_active_window
-            name: Active Window
-          - type: divider
-          - entity: button.mint_laptop_lock
-            name: Lock Screen
-          - entity: button.mint_laptop_shutdown
-            name: Shutdown
-          - entity: button.mint_laptop_cancel_shutdown
-            name: Cancel Shutdown
+          - entity: switch.kidlock_{hostname}_{username}_paused
+            name: Timer Paused
 
-      # Windows Laptop Card
-      - type: entities
-        title: Windows Laptop
-        show_header_toggle: false
-        entities:
-          - entity: binary_sensor.win_laptop_online
-            name: Status
-          - entity: sensor.win_laptop_usage_formatted
-            name: Usage Today
-          - entity: sensor.win_laptop_idle_formatted
-            name: Idle Time
-          - entity: sensor.win_laptop_active_window
-            name: Active Window
-          - type: divider
-          - entity: button.win_laptop_lock
-            name: Lock Screen
-          - entity: button.win_laptop_shutdown
-            name: Shutdown
-          - entity: button.win_laptop_cancel_shutdown
-            name: Cancel Shutdown
+          - type: buttons
+            entities:
+              - entity: button.kidlock_{hostname}_{username}_add_15min
+                name: "+15"
+              - entity: button.kidlock_{hostname}_{username}_add_30min
+                name: "+30"
 
-      # Quick Controls - Horizontal Stack
+          - type: buttons
+            entities:
+              - entity: button.kidlock_{hostname}_{username}_lock
+                name: Lock
+              - entity: button.kidlock_{hostname}_{username}_unlock
+                name: Unlock
+
+      # ============================================================
+      # USAGE GAUGES COMPARISON
+      # Shows all children side-by-side
+      # ============================================================
+
       - type: horizontal-stack
-        cards:
-          - type: button
-            name: Lock Mint
-            icon: mdi:lock
-            tap_action:
-              action: call-service
-              service: button.press
-              target:
-                entity_id: button.mint_laptop_lock
-          - type: button
-            name: Lock Win
-            icon: mdi:lock
-            tap_action:
-              action: call-service
-              service: button.press
-              target:
-                entity_id: button.win_laptop_lock
-
-      # Usage Gauge Cards
-      - type: horizontal-stack
+        title: Daily Usage
         cards:
           - type: gauge
-            name: Mint Usage
-            entity: sensor.mint_laptop_usage
+            name: Emma
+            entity: sensor.kidlock_{hostname}_emma_usage
             min: 0
-            max: 480
+            max: 120
             severity:
               green: 0
-              yellow: 180
-              red: 360
+              yellow: 60
+              red: 90
+            unit: min
+
           - type: gauge
-            name: Win Usage
-            entity: sensor.win_laptop_usage
+            name: Lucas
+            entity: sensor.kidlock_{hostname}_lucas_usage
             min: 0
-            max: 480
+            max: 90
             severity:
               green: 0
-              yellow: 180
-              red: 360
+              yellow: 45
+              red: 70
+            unit: min
+
+      # ============================================================
+      # DEVICE STATUS CARD
+      # Shows overall device connectivity
+      # ============================================================
+
+      - type: entities
+        title: Devices
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.kidlock_{hostname}_online
+            name: "{hostname}"
+            secondary_info: last-changed
+
+      # ============================================================
+      # HISTORY GRAPH
+      # Shows usage over time
+      # ============================================================
+
+      - type: history-graph
+        title: Usage History
+        hours_to_show: 168  # 1 week
+        entities:
+          - entity: sensor.kidlock_{hostname}_emma_usage
+            name: Emma
+          - entity: sensor.kidlock_{hostname}_lucas_usage
+            name: Lucas

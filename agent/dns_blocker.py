@@ -18,7 +18,7 @@ DEFAULT_WHITELIST = [
     "akamaihd.net",
 ]
 
-DNSMASQ_CONFIG_PATH = "/etc/dnsmasq.d/kidlock.conf"
+DNSMASQ_CONFIG_PATH = "/etc/NetworkManager/dnsmasq.d/kidlock.conf"
 UPSTREAM_DNS = "8.8.8.8"
 
 
@@ -151,18 +151,18 @@ class DnsBlocker:
             log.error(f"Error clearing dnsmasq config: {e}")
 
     def _restart_dnsmasq(self) -> None:
-        """Restart dnsmasq service via sudo."""
+        """Restart NetworkManager to reload dnsmasq config."""
         try:
             proc = subprocess.run(
-                ["sudo", "/bin/systemctl", "restart", "dnsmasq"],
+                ["sudo", "/bin/systemctl", "restart", "NetworkManager"],
                 capture_output=True,
                 timeout=30,
             )
             if proc.returncode != 0:
-                log.error(f"Failed to restart dnsmasq: {proc.stderr.decode()}")
+                log.error(f"Failed to restart NetworkManager: {proc.stderr.decode()}")
             else:
-                log.info("Restarted dnsmasq service")
+                log.info("Restarted NetworkManager (dnsmasq reloaded)")
         except subprocess.TimeoutExpired:
-            log.error("Timeout restarting dnsmasq")
+            log.error("Timeout restarting NetworkManager")
         except Exception as e:
-            log.error(f"Error restarting dnsmasq: {e}")
+            log.error(f"Error restarting NetworkManager: {e}")

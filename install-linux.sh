@@ -115,26 +115,16 @@ if ! systemctl --user daemon-reload 2>/dev/null; then
     echo "      Run 'systemctl --user daemon-reload' after logging in to your desktop."
 fi
 
-# Setup DNS blocking with dnsmasq
+# Setup DNS blocking with dnsmasq (via NetworkManager plugin)
 echo ""
 echo "=== Setting up DNS blocking ==="
 
-# Ensure dnsmasq config directory exists
-sudo mkdir -p /etc/dnsmasq.d
+# NetworkManager uses its own dnsmasq instance, configs go in /etc/NetworkManager/dnsmasq.d/
+sudo mkdir -p /etc/NetworkManager/dnsmasq.d
 
-# Configure dnsmasq base settings
+# Create empty kidlock config (will be populated when blocking is enabled)
 echo "Configuring dnsmasq..."
-sudo tee /etc/dnsmasq.d/00-kidlock-base.conf > /dev/null << 'EOF'
-# Kidlock base configuration
-# Only DNS, no DHCP
-no-dhcp-interface=
-# Listen on localhost
-listen-address=127.0.0.1
-bind-interfaces
-EOF
-
-# Create empty kidlock config
-sudo tee /etc/dnsmasq.d/kidlock.conf > /dev/null << 'EOF'
+sudo tee /etc/NetworkManager/dnsmasq.d/kidlock.conf > /dev/null << 'EOF'
 # Kidlock DNS blocking disabled
 EOF
 
@@ -142,24 +132,20 @@ EOF
 echo "Configuring sudoers for DNS blocking..."
 sudo tee /etc/sudoers.d/kidlock > /dev/null << EOF
 # Kidlock parental control - allow managing DNS blocking
-$USER ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/dnsmasq.d/kidlock.conf
-$USER ALL=(ALL) NOPASSWD: /bin/systemctl restart dnsmasq
-$USER ALL=(ALL) NOPASSWD: /bin/systemctl stop dnsmasq
-$USER ALL=(ALL) NOPASSWD: /bin/systemctl start dnsmasq
+$USER ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/NetworkManager/dnsmasq.d/kidlock.conf
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl restart NetworkManager
 EOF
 
-# Configure NetworkManager to use local dnsmasq
-echo "Configuring NetworkManager to use local DNS..."
+# Configure NetworkManager to use dnsmasq plugin
+echo "Configuring NetworkManager to use dnsmasq..."
 sudo tee /etc/NetworkManager/conf.d/kidlock-dns.conf > /dev/null << 'EOF'
 [main]
 dns=dnsmasq
 EOF
 
-# Restart services
-echo "Restarting NetworkManager and dnsmasq..."
+# Restart NetworkManager to apply changes
+echo "Restarting NetworkManager..."
 sudo systemctl restart NetworkManager
-sudo systemctl enable dnsmasq
-sudo systemctl restart dnsmasq
 
 echo ""
 echo "=== Installation Complete ==="

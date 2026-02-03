@@ -62,8 +62,8 @@ mqtt:
   username: "mqtt_user"
   password: "mqtt_pass"
 
-device:
-  hostname: "mint-laptop"  # Used in MQTT topic
+# device:
+#   hostname: "custom-name"  # Optional: defaults to system hostname
 
 activity:
   poll_interval: 10  # Seconds

@@ -1,5 +1,7 @@
 """User session enforcement for Kidlock agent."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os

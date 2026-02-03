@@ -119,6 +119,9 @@ fi
 echo ""
 echo "=== Setting up DNS blocking ==="
 
+# Ensure dnsmasq config directory exists
+sudo mkdir -p /etc/dnsmasq.d
+
 # Configure dnsmasq base settings
 echo "Configuring dnsmasq..."
 sudo tee /etc/dnsmasq.d/00-kidlock-base.conf > /dev/null << 'EOF'

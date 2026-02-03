@@ -2,6 +2,19 @@
 # Copy to: config/packages/kidlock.yaml
 # Or include in configuration.yaml
 
+# Input helpers for website blocking
+input_boolean:
+  kidlock_blocking_enabled:
+    name: "Website Blocking"
+    icon: mdi:shield-lock
+
+input_text:
+  kidlock_whitelist:
+    name: "Allowed Websites"
+    max: 2048
+    icon: mdi:format-list-bulleted
+    # Comma-separated: "google.com, youtube.com, wikipedia.org"
+
 # Input helpers for schedule management
 input_number:
   kidlock_daily_limit:
@@ -42,7 +55,7 @@ input_datetime:
 automation:
   - id: kidlock_publish_settings
     alias: "Kidlock: Publish Settings"
-    description: "Push schedule settings to laptops when changed"
+    description: "Push schedule and blocking settings to laptops when changed"
     mode: restart
     trigger:
       - platform: state
@@ -52,9 +65,13 @@ automation:
           - input_datetime.kidlock_weekday_end
           - input_datetime.kidlock_weekend_start
           - input_datetime.kidlock_weekend_end
+          - input_boolean.kidlock_blocking_enabled
+          - input_text.kidlock_whitelist
       - platform: homeassistant
         event: start
     action:
+      - delay:
+          seconds: 5
       - service: mqtt.publish
         data:
           topic: "parental/mint-laptop/settings"
@@ -64,7 +81,9 @@ automation:
               "weekday_start": "{{ states('input_datetime.kidlock_weekday_start') }}",
               "weekday_end": "{{ states('input_datetime.kidlock_weekday_end') }}",
               "weekend_start": "{{ states('input_datetime.kidlock_weekend_start') }}",
-              "weekend_end": "{{ states('input_datetime.kidlock_weekend_end') }}"
+              "weekend_end": "{{ states('input_datetime.kidlock_weekend_end') }}",
+              "blocking_enabled": {{ is_state('input_boolean.kidlock_blocking_enabled', 'on') | lower }},
+              "whitelist": "{{ states('input_text.kidlock_whitelist') }}"
             }
           retain: true
       - service: mqtt.publish
@@ -76,7 +95,9 @@ automation:
               "weekday_start": "{{ states('input_datetime.kidlock_weekday_start') }}",
               "weekday_end": "{{ states('input_datetime.kidlock_weekday_end') }}",
               "weekend_start": "{{ states('input_datetime.kidlock_weekend_start') }}",
-              "weekend_end": "{{ states('input_datetime.kidlock_weekend_end') }}"
+              "weekend_end": "{{ states('input_datetime.kidlock_weekend_end') }}",
+              "blocking_enabled": {{ is_state('input_boolean.kidlock_blocking_enabled', 'on') | lower }},
+              "whitelist": "{{ states('input_text.kidlock_whitelist') }}"
             }
           retain: true
 
@@ -109,6 +130,12 @@ mqtt:
       unit_of_measurement: "min"
       icon: mdi:clock-outline
 
+    # Mint Laptop Blocking Status
+    - name: "Mint Laptop Blocking"
+      state_topic: "parental/mint-laptop/activity"
+      value_template: "{{ 'on' if value_json.blocking_enabled else 'off' }}"
+      icon: mdi:shield-lock
+
     # Windows Laptop Status
     - name: "Win Laptop Status"
       state_topic: "parental/win-laptop/status"
@@ -134,6 +161,12 @@ mqtt:
       value_template: "{{ value_json.usage_minutes }}"
       unit_of_measurement: "min"
       icon: mdi:clock-outline
+
+    # Windows Laptop Blocking Status
+    - name: "Win Laptop Blocking"
+      state_topic: "parental/win-laptop/activity"
+      value_template: "{{ 'on' if value_json.blocking_enabled else 'off' }}"
+      icon: mdi:shield-lock
 
   binary_sensor:
     # Mint Laptop Online

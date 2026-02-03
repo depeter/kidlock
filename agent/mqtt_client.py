@@ -113,6 +113,7 @@ class MqttClient:
         active_window: Optional[str],
         idle_seconds: int,
         usage_minutes: int = 0,
+        blocking_enabled: bool = False,
     ) -> None:
         """Publish activity data."""
         if self._client:
@@ -120,9 +121,10 @@ class MqttClient:
                 "active_window": active_window or "",
                 "idle_seconds": idle_seconds,
                 "usage_minutes": usage_minutes,
+                "blocking_enabled": blocking_enabled,
             })
             self._client.publish(self.topic_activity, payload, qos=0, retain=False)
-            log.debug(f"Published activity: window={active_window}, idle={idle_seconds}s")
+            log.debug(f"Published activity: window={active_window}, idle={idle_seconds}s, blocking={blocking_enabled}")
 
     def _on_connect(
         self,

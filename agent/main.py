@@ -11,6 +11,7 @@ from typing import Optional
 from .activity import ActivityMonitor
 from .commands import CommandHandler
 from .config import Config
+from .dns_blocker import DnsBlocker
 from .mqtt_client import MqttClient
 from .platform import get_platform
 from .scheduler import Scheduler
@@ -28,6 +29,7 @@ class KidlockAgent:
 
         # Initialize components
         self.command_handler = CommandHandler(self.platform)
+        self.dns_blocker = DnsBlocker()
         self.mqtt_client = MqttClient(config, self._on_command, self._on_settings)
         self.activity_monitor = ActivityMonitor(
             self.platform,
@@ -48,12 +50,26 @@ class KidlockAgent:
         """Handle incoming settings update from HA."""
         self.scheduler.update_limits(settings)
 
+        # Handle DNS blocking settings
+        if "blocking_enabled" in settings:
+            self.dns_blocker.set_enabled(bool(settings["blocking_enabled"]))
+
+        if "whitelist" in settings:
+            # Whitelist comes as comma-separated string from HA
+            whitelist_str = settings["whitelist"]
+            if isinstance(whitelist_str, str):
+                domains = [d.strip() for d in whitelist_str.split(",") if d.strip()]
+            else:
+                domains = whitelist_str or []
+            self.dns_blocker.update_whitelist(domains)
+
     def _on_activity(self, active_window: Optional[str], idle_seconds: int) -> None:
         """Handle activity update."""
         self.mqtt_client.publish_activity(
             active_window,
             idle_seconds,
             self.scheduler.usage_minutes,
+            self.dns_blocker.enabled,
         )
 
     def _on_limit_reached(self, reason: str) -> None:

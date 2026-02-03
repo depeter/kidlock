@@ -11,7 +11,7 @@ echo "=== Kidlock Linux Installer ==="
 
 # Check for required tools
 echo "Checking dependencies..."
-for cmd in xdotool xprintidle zenity; do
+for cmd in xdotool xprintidle zenity dnsmasq; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "Warning: $cmd not found. Install with: sudo apt install $cmd"
     fi
@@ -68,6 +68,55 @@ EOF
 # Reload systemd
 echo "Reloading systemd..."
 systemctl --user daemon-reload
+
+# Setup DNS blocking with dnsmasq
+echo ""
+echo "=== Setting up DNS blocking ==="
+
+# Install dnsmasq if not present
+if ! command -v dnsmasq &>/dev/null; then
+    echo "Installing dnsmasq..."
+    sudo apt install -y dnsmasq
+fi
+
+# Configure dnsmasq base settings
+echo "Configuring dnsmasq..."
+sudo tee /etc/dnsmasq.d/00-kidlock-base.conf > /dev/null << 'EOF'
+# Kidlock base configuration
+# Only DNS, no DHCP
+no-dhcp-interface=
+# Listen on localhost
+listen-address=127.0.0.1
+bind-interfaces
+EOF
+
+# Create empty kidlock config
+sudo tee /etc/dnsmasq.d/kidlock.conf > /dev/null << 'EOF'
+# Kidlock DNS blocking disabled
+EOF
+
+# Configure sudoers for kidlock DNS operations
+echo "Configuring sudoers for DNS blocking..."
+sudo tee /etc/sudoers.d/kidlock > /dev/null << EOF
+# Kidlock parental control - allow managing DNS blocking
+$USER ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/dnsmasq.d/kidlock.conf
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl restart dnsmasq
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl stop dnsmasq
+$USER ALL=(ALL) NOPASSWD: /bin/systemctl start dnsmasq
+EOF
+
+# Configure NetworkManager to use local dnsmasq
+echo "Configuring NetworkManager to use local DNS..."
+sudo tee /etc/NetworkManager/conf.d/kidlock-dns.conf > /dev/null << 'EOF'
+[main]
+dns=dnsmasq
+EOF
+
+# Restart services
+echo "Restarting NetworkManager and dnsmasq..."
+sudo systemctl restart NetworkManager
+sudo systemctl enable dnsmasq
+sudo systemctl restart dnsmasq
 
 echo ""
 echo "=== Installation Complete ==="

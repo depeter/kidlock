@@ -9,6 +9,14 @@ VENV_DIR="$SCRIPT_DIR/.venv"
 
 echo "=== Kidlock Linux Installer ==="
 
+# Check if running as root (shouldn't be)
+if [ "$EUID" -eq 0 ]; then
+    echo "Error: Do not run this script as root or with sudo."
+    echo "Run as your normal user: ./install-linux.sh"
+    echo "The script will use sudo internally when needed."
+    exit 1
+fi
+
 # Detect package manager and install function
 install_pkg() {
     if command -v apt &>/dev/null; then
@@ -100,9 +108,12 @@ Environment=XAUTHORITY=$HOME/.Xauthority
 WantedBy=default.target
 EOF
 
-# Reload systemd
-echo "Reloading systemd..."
-systemctl --user daemon-reload
+# Reload systemd user daemon
+echo "Reloading systemd user daemon..."
+if ! systemctl --user daemon-reload 2>/dev/null; then
+    echo "Note: Could not reload systemd user daemon."
+    echo "      Run 'systemctl --user daemon-reload' after logging in to your desktop."
+fi
 
 # Setup DNS blocking with dnsmasq
 echo ""

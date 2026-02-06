@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -21,6 +22,13 @@ from .tamper_detector import TamperDetector
 
 # Directory for file-based time requests from tray
 REQUEST_DIR = Path("/var/lib/kidlock/requests")
+
+# State file for persistent data (shared with enforcer)
+STATE_DIR = Path("/var/lib/kidlock")
+STATE_FILE = STATE_DIR / "state.json"
+
+# Regex for schedule validation (HH:MM-HH:MM)
+SCHEDULE_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$")
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +61,56 @@ class KidlockAgent:
 
         # Track tamper detection state
         self._tamper_detected = False
+
+    def _load_schedule_overrides(self) -> None:
+        """Load schedule overrides from state.json and apply to config."""
+        if not STATE_FILE.exists():
+            return
+        try:
+            with open(STATE_FILE) as f:
+                data = json.load(f)
+            overrides = data.get("schedule_overrides", {})
+            for username, ovr in overrides.items():
+                user_config = self.config.get_user(username)
+                if not user_config:
+                    continue
+                if "daily_minutes" in ovr:
+                    user_config.daily_minutes = ovr["daily_minutes"]
+                if "weekday" in ovr:
+                    user_config.schedule.weekday = ovr["weekday"]
+                if "weekend" in ovr:
+                    user_config.schedule.weekend = ovr["weekend"]
+            if overrides:
+                log.info(f"Loaded schedule overrides for: {list(overrides.keys())}")
+        except Exception as e:
+            log.error(f"Failed to load schedule overrides: {e}")
+
+    def _save_schedule_overrides(self) -> None:
+        """Save current schedule settings as overrides in state.json."""
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        data = {}
+        if STATE_FILE.exists():
+            try:
+                with open(STATE_FILE) as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+
+        overrides = data.get("schedule_overrides", {})
+        for user_config in self.config.users:
+            overrides[user_config.username] = {
+                "daily_minutes": user_config.daily_minutes,
+                "weekday": user_config.schedule.weekday,
+                "weekend": user_config.schedule.weekend,
+            }
+        data["schedule_overrides"] = overrides
+
+        try:
+            with open(STATE_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+            os.chmod(STATE_FILE, 0o644)
+        except Exception as e:
+            log.error(f"Failed to save schedule overrides: {e}")
 
     def _on_command(self, command: dict) -> None:
         """Handle incoming MQTT command."""
@@ -189,6 +247,51 @@ class KidlockAgent:
                     if self.enforcer.deny_request(user.username):
                         self.notifier.send_request_denied(user.username)
                         self.mqtt_client.publish_event("request_denied", user.username)
+
+        elif action == "set_daily_limit":
+            # Set daily time limit for a user (from HA number entity)
+            if not username:
+                log.warning("set_daily_limit requires 'user' field")
+                return
+            try:
+                minutes = int(command.get("minutes", -1))
+            except (TypeError, ValueError):
+                log.warning(f"Invalid daily limit value: {command.get('minutes')}")
+                return
+            if minutes < 0 or minutes > 720:
+                log.warning(f"Daily limit out of range (0-720): {minutes}")
+                return
+            user_config = self.config.get_user(username)
+            if not user_config:
+                log.warning(f"Unknown user for set_daily_limit: {username}")
+                return
+            user_config.daily_minutes = minutes
+            self._save_schedule_overrides()
+            log.info(f"Set daily limit for {username} to {minutes} minutes")
+
+        elif action == "set_schedule":
+            # Set weekday/weekend schedule for a user (from HA text entity)
+            if not username:
+                log.warning("set_schedule requires 'user' field")
+                return
+            day = command.get("day", "")
+            schedule = command.get("schedule", "")
+            if day not in ("weekday", "weekend"):
+                log.warning(f"Invalid schedule day '{day}', must be 'weekday' or 'weekend'")
+                return
+            if not SCHEDULE_RE.match(schedule):
+                log.warning(f"Invalid schedule format '{schedule}', expected HH:MM-HH:MM")
+                return
+            user_config = self.config.get_user(username)
+            if not user_config:
+                log.warning(f"Unknown user for set_schedule: {username}")
+                return
+            if day == "weekday":
+                user_config.schedule.weekday = schedule
+            else:
+                user_config.schedule.weekend = schedule
+            self._save_schedule_overrides()
+            log.info(f"Set {day} schedule for {username} to {schedule}")
 
         else:
             log.warning(f"Unknown command: {action}")
@@ -353,6 +456,8 @@ class KidlockAgent:
             top_apps=top_apps,
             current_app=current_app,
             pending_request=state.pending_request,
+            schedule_weekday=user_config.schedule.weekday,
+            schedule_weekend=user_config.schedule.weekend,
         )
 
     def _account_usage(self) -> None:
@@ -399,6 +504,9 @@ class KidlockAgent:
         if not self.mqtt_client.wait_for_connection(timeout=30):
             log.error("Failed to connect to MQTT broker")
             sys.exit(1)
+
+        # Load schedule overrides from state.json (before publishing discovery)
+        self._load_schedule_overrides()
 
         # Publish Home Assistant discovery
         self.mqtt_client.publish_ha_discovery(self.config.users)

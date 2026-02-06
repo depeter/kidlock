@@ -362,6 +362,49 @@ class MqttClient:
                 "icon": "mdi:close-circle",
             })
 
+            # Daily limit number (adjustable from HA)
+            self._publish_discovery("number", f"{user_id}_daily_limit_setting", {
+                "name": f"{username} Daily Limit Setting",
+                "unique_id": f"kidlock_{user_id}_daily_limit_setting",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ value_json.daily_limit }}",
+                "command_topic": self.topic_command,
+                "command_template": '{"action": "set_daily_limit", "user": "' + username + '", "minutes": {{ value | int }}}',
+                "min": 0,
+                "max": 720,
+                "step": 5,
+                "unit_of_measurement": "min",
+                "icon": "mdi:timer-cog",
+                "mode": "slider",
+            })
+
+            # Weekday schedule text (adjustable from HA)
+            self._publish_discovery("text", f"{user_id}_weekday_schedule", {
+                "name": f"{username} Weekday Schedule",
+                "unique_id": f"kidlock_{user_id}_weekday_schedule",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ value_json.schedule_weekday }}",
+                "command_topic": self.topic_command,
+                "command_template": '{"action": "set_schedule", "user": "' + username + '", "day": "weekday", "schedule": "{{ value }}"}',
+                "icon": "mdi:calendar-week",
+                "pattern": r"[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]",
+            })
+
+            # Weekend schedule text (adjustable from HA)
+            self._publish_discovery("text", f"{user_id}_weekend_schedule", {
+                "name": f"{username} Weekend Schedule",
+                "unique_id": f"kidlock_{user_id}_weekend_schedule",
+                "device": device_info,
+                "state_topic": user_topic,
+                "value_template": "{{ value_json.schedule_weekend }}",
+                "command_topic": self.topic_command,
+                "command_template": '{"action": "set_schedule", "user": "' + username + '", "day": "weekend", "schedule": "{{ value }}"}',
+                "icon": "mdi:calendar-weekend",
+                "pattern": r"[0-2][0-9]:[0-5][0-9]-[0-2][0-9]:[0-5][0-9]",
+            })
+
         log.info(f"Published HA discovery for {len(users)} users")
 
     def _publish_discovery(self, component: str, object_id: str, config: dict) -> None:
@@ -404,6 +447,8 @@ class MqttClient:
         top_apps: list[tuple[str, int]] | None = None,
         current_app: str | None = None,
         pending_request: dict | None = None,
+        schedule_weekday: str = "00:00-23:59",
+        schedule_weekend: str = "00:00-23:59",
     ) -> None:
         """Publish per-user activity data."""
         if self._client:
@@ -432,6 +477,8 @@ class MqttClient:
                 "current_app": current_app or "",
                 "has_pending_request": pending_request is not None,
                 "pending_request": pending_request,
+                "schedule_weekday": schedule_weekday,
+                "schedule_weekend": schedule_weekend,
             })
             self._client.publish(topic, payload, qos=0, retain=True)
             log.debug(f"Published user activity: {username} active={active} usage={usage_minutes}m remaining={time_remaining}m idle={is_idle}")

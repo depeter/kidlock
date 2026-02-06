@@ -197,6 +197,22 @@ views:
             - entity_id: button.kidlock_*_deny_request
 
       # ============================================================
+      # SCHEDULE SETTINGS
+      # Adjust daily limits and allowed hours per user
+      # ============================================================
+
+      - type: custom:auto-entities
+        card:
+          type: entities
+          title: Schedule Settings
+          show_header_toggle: false
+        filter:
+          include:
+            - entity_id: number.kidlock_*_daily_limit_setting
+            - entity_id: text.kidlock_*_weekday_schedule
+            - entity_id: text.kidlock_*_weekend_schedule
+
+      # ============================================================
       # ALERTS
       # Tamper detection, blocked status
       # ============================================================

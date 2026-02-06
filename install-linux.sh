@@ -198,7 +198,7 @@ PAM_LINE="auth    required    pam_exec.so    quiet /usr/local/bin/kidlock-pam-ch
 if [ -f /etc/pam.d/common-auth ]; then
     if ! grep -q "kidlock-pam-check" /etc/pam.d/common-auth; then
         # Insert after the first auth line
-        sed -i "0,/^auth/s/^auth.*$/&\n$PAM_LINE/" /etc/pam.d/common-auth
+        sed -i "0,/^auth/s|^auth.*$|&\n$PAM_LINE|" /etc/pam.d/common-auth
         echo "Added to /etc/pam.d/common-auth"
     else
         echo "Already in /etc/pam.d/common-auth"
@@ -209,7 +209,7 @@ fi
 for pam_file in /etc/pam.d/login /etc/pam.d/gdm-password /etc/pam.d/lightdm; do
     if [ -f "$pam_file" ]; then
         if ! grep -q "kidlock-pam-check" "$pam_file"; then
-            sed -i "0,/^auth/s/^auth.*$/&\n$PAM_LINE/" "$pam_file"
+            sed -i "0,/^auth/s|^auth.*$|&\n$PAM_LINE|" "$pam_file"
             echo "Added to $pam_file"
         fi
     fi
